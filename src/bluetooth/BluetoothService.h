@@ -17,6 +17,8 @@ public:
     void next();
     void previous();
 
+    bool reconnect();
+
     bool started() const { return _started; }
 
 private:
@@ -26,8 +28,10 @@ private:
     String _deviceName;
     uint32_t _lastPoll = 0;
 
-    esp_a2d_connection_state_t _lastConnectionState = ESP_A2D_CONNECTION_STATE_DISCONNECTED;
-    esp_a2d_audio_state_t _lastAudioState = ESP_A2D_AUDIO_STATE_STOPPED;
+    esp_a2d_connection_state_t _lastConnectionState =
+        ESP_A2D_CONNECTION_STATE_DISCONNECTED;
+    esp_a2d_audio_state_t _lastAudioState =
+        ESP_A2D_AUDIO_STATE_STOPPED;
 
     volatile bool _remoteVolumePending = false;
     volatile int _remoteVolume127 = 0;

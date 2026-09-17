@@ -1,7 +1,7 @@
 # DINaudio — MASTER SPEC
 
 Status: baza po zakończeniu M2.2 i wdrożeniu fundamentu konfiguracji runtime
-Aktualna wersja firmware: 0.3.0
+Aktualna wersja firmware: 0.4.0
 
 Wersjonowanie firmware stosuje Semantic Versioning MAJOR.MINOR.PATCH: 0.x.y oznacza
 okres przed stabilnym 1.0.0, PATCH oznacza poprawki błędów, MINOR nowe funkcje, a
@@ -84,6 +84,6 @@ zostały przetestowane sprzętowo.
 - równoległa praca Bluetooth, Wi-Fi, WWW i OTA
 - TFT z BT status/metadata bez migotania
 
-## Następny milestone
+## 0.4.0 — Bluetooth ownership i reconnect grace`r`n`r`nApp zarządza Bluetooth ownership. Po utracie połączenia działa 10-sekundowy grace period z próbami reconnectu do ostatniego urządzenia; ekran pokazuje BT RECONNECT, a metadata jest czyszczona dopiero po wygaśnięciu okna. Config schema 3 i migracja 1 → 2 → 3 zachowują istniejącą konfigurację. Zakres został przetestowany sprzętowo.`r`n`r`n## Następny milestone
 
 M3 — Radio.

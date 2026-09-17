@@ -1,4 +1,4 @@
-# Changelog
+# Changelog`r`n`r`n## 0.4.0`r`n- Bluetooth ownership przeniesiony do App; reconnect grace period wynosi 10 s.`r`n- BT ownership/reconnect, ekran BT RECONNECT oraz powrót telefonu w grace period zostały przetestowane sprzętowo.`r`n- Config schema 3; migracja 1 → 2 → 3 zachowuje istniejącą konfigurację i ustawia reconnectDelayMs = 10000.
 
 ## 0.3.0
 - Przebudowany ekran ST7789 284×76 w układzie inspirowanym yoRadio DSP_ST7789_76.

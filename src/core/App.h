@@ -1,4 +1,8 @@
-#pragma once
+﻿#pragma once
+
+#include "StateStore.h"
+
+#include "StateStore.h"
 
 #include "../config/ConfigManager.h"
 #include "../hal/EncoderInput.h"
@@ -29,6 +33,15 @@ private:
     uint32_t _volumeSaveDue = 0;
     bool _volumeDirty = false;
 
+    bool _btWasConnected = false;
+    bool _btReconnectGraceActive = false;
+    uint32_t _btReconnectGraceUntil = 0;
+    AudioSource _sourceBeforeBluetooth = AudioSource::Stop;
+
     void processCommands();
+    void updateBluetoothOwnership();
+    void enterBluetoothReconnectGrace();
+    void finishBluetoothReconnectGrace();
     String makeBluetoothName() const;
 };
+

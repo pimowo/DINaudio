@@ -1,23 +1,21 @@
-#include "ConfigManager.h"
+﻿#include "ConfigManager.h"
 
 namespace {
 static constexpr const char* NVS_NAMESPACE = "dinaudio";
 
-// Existing legacy keys are intentionally preserved.
 static constexpr const char* KEY_SCHEMA_VERSION = "cfg_ver";
 static constexpr const char* KEY_WIFI_SSID = "wifi_ssid";
 static constexpr const char* KEY_WIFI_PASS = "wifi_pass";
 static constexpr const char* KEY_VOLUME = "volume";
 
-// New schema-v1 keys.
 static constexpr const char* KEY_MAX_VOLUME = "max_volume";
 static constexpr const char* KEY_BT_AUTO_RECONNECT = "bt_reconn";
 static constexpr const char* KEY_BT_RECONNECT_DELAY = "bt_reconn_ms";
 
 static constexpr int DEFAULT_VOLUME = 25;
 static constexpr int DEFAULT_MAX_VOLUME = 100;
-static constexpr bool DEFAULT_BT_AUTO_RECONNECT = false;
-static constexpr uint32_t DEFAULT_BT_RECONNECT_DELAY_MS = 2500;
+static constexpr bool DEFAULT_BT_AUTO_RECONNECT = true;
+static constexpr uint32_t DEFAULT_BT_RECONNECT_DELAY_MS = 10000;
 }
 
 bool ConfigManager::begin() {
@@ -36,34 +34,46 @@ bool ConfigManager::begin() {
 }
 
 bool ConfigManager::migrateIfNeeded(uint16_t storedVersion) {
-    if (storedVersion == ConfigSchema::CURRENT_VERSION) {
+    if (storedVersion > ConfigSchema::CURRENT_VERSION) {
+        // Newer firmware wrote the configuration.
+        // Do not overwrite unknown/newer data.
         return true;
     }
 
-    if (storedVersion == 0) {
-        // Legacy DINaudio had no schema version. Existing wifi_ssid,
-        // wifi_pass and volume keys remain untouched.
-        return initializeSchemaV1();
+    uint16_t version = storedVersion;
+
+    if (version == 0) {
+        if (!initializeSchemaV1()) {
+            return false;
+        }
+        version = 1;
     }
 
-    if (storedVersion < ConfigSchema::CURRENT_VERSION) {
-        // Future migrations go here, one schema at a time.
-        return false;
+    if (version == 1) {
+        if (!migrateV1ToV2()) {
+            return false;
+        }
+        version = 2;
     }
 
-    // Configuration written by a newer firmware version.
-    // Do not overwrite it. Load only the keys this firmware understands.
-    return true;
+    if (version == 2) {
+        if (!migrateV2ToV3()) {
+            return false;
+        }
+        version = 3;
+    }
+
+    return version == ConfigSchema::CURRENT_VERSION;
 }
 
 bool ConfigManager::initializeSchemaV1() {
-    // Add defaults only for keys that did not exist in the legacy store.
     if (!_prefs.isKey(KEY_MAX_VOLUME)) {
         _prefs.putInt(KEY_MAX_VOLUME, DEFAULT_MAX_VOLUME);
     }
 
     if (!_prefs.isKey(KEY_BT_AUTO_RECONNECT)) {
-        _prefs.putBool(KEY_BT_AUTO_RECONNECT, DEFAULT_BT_AUTO_RECONNECT);
+        // Historical schema-v1 default.
+        _prefs.putBool(KEY_BT_AUTO_RECONNECT, false);
     }
 
     if (!_prefs.isKey(KEY_BT_RECONNECT_DELAY)) {
@@ -73,10 +83,49 @@ bool ConfigManager::initializeSchemaV1() {
         );
     }
 
-    // Version is written last so an interrupted migration can be retried.
+    // Write schema marker last.
+    return _prefs.putUShort(KEY_SCHEMA_VERSION, 1) > 0;
+}
+
+bool ConfigManager::migrateV1ToV2() {
+    // v0.4.0 activates the BT reconnect/ownership feature.
+    // Prior firmware exposed no user-facing control for this setting,
+    // so schema-v2 enables it by default for existing installations.
+    if (_prefs.putBool(
+            KEY_BT_AUTO_RECONNECT,
+            DEFAULT_BT_AUTO_RECONNECT
+        ) == 0) {
+        return false;
+    }
+
+    if (!_prefs.isKey(KEY_BT_RECONNECT_DELAY)) {
+        if (_prefs.putUInt(
+                KEY_BT_RECONNECT_DELAY,
+                DEFAULT_BT_RECONNECT_DELAY_MS
+            ) == 0) {
+            return false;
+        }
+    }
+
     return _prefs.putUShort(
         KEY_SCHEMA_VERSION,
-        ConfigSchema::CURRENT_VERSION
+        2
+    ) > 0;
+}
+
+bool ConfigManager::migrateV2ToV3() {
+    // DINaudio 0.4.0: wydluzony grace period dla realnego
+    // wylaczenia i ponownego wlaczenia Bluetooth w telefonie.
+    if (_prefs.putUInt(
+            KEY_BT_RECONNECT_DELAY,
+            DEFAULT_BT_RECONNECT_DELAY_MS
+        ) == 0) {
+        return false;
+    }
+
+    return _prefs.putUShort(
+        KEY_SCHEMA_VERSION,
+        3
     ) > 0;
 }
 
@@ -208,3 +257,4 @@ bool ConfigManager::saveBluetoothReconnectDelayMs(uint32_t value) {
     _config.bluetooth.reconnectDelayMs = safeValue;
     return true;
 }
+

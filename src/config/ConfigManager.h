@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <Arduino.h>
 #include <Preferences.h>
@@ -40,4 +40,7 @@ private:
     bool load();
     bool migrateIfNeeded(uint16_t storedVersion);
     bool initializeSchemaV1();
+    bool migrateV1ToV2();
+    bool migrateV2ToV3();
 };
+

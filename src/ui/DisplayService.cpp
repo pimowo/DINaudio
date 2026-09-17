@@ -1,4 +1,4 @@
-#include "DisplayService.h"
+﻿#include "DisplayService.h"
 
 #include "AppConfig.h"
 #include "BoardConfig.h"
@@ -164,6 +164,7 @@ int DisplayService::wifiLevel(int rssi) {
 
 void DisplayService::drawHeader(
     bool btConnected,
+    bool reconnectGrace,
     const String& peerName
 ) {
     const uint16_t stationFill =
@@ -179,7 +180,7 @@ void DisplayService::drawHeader(
 
     String label;
 
-    if (btConnected) {
+    if (btConnected || reconnectGrace) {
         label = peerName.isEmpty()
             ? String("BLUETOOTH")
             : peerName;
@@ -200,6 +201,7 @@ void DisplayService::drawHeader(
 
 void DisplayService::drawMetadata(
     bool btConnected,
+    bool reconnectGrace,
     const String& artist,
     const String& title
 ) {
@@ -213,7 +215,7 @@ void DisplayService::drawMetadata(
 
     _tft.setTextSize(1);
 
-    if (!btConnected) {
+    if (!btConnected && !reconnectGrace) {
         _tft.setTextColor(ST77XX_CYAN, ST77XX_BLACK);
         _tft.setCursor(LEFT_X, TITLE1_Y);
         _tft.print("STOP");
@@ -241,7 +243,8 @@ void DisplayService::drawMetadata(
 
 void DisplayService::drawSourceInfo(
     bool btConnected,
-    bool btPlaying
+    bool btPlaying,
+    bool reconnectGrace
 ) {
     _tft.fillRect(
         0,
@@ -254,7 +257,10 @@ void DisplayService::drawSourceInfo(
     _tft.setTextSize(1);
     _tft.setCursor(LEFT_X, INFO1_Y);
 
-    if (btConnected) {
+    if (reconnectGrace) {
+        _tft.setTextColor(ST77XX_YELLOW, ST77XX_BLACK);
+        _tft.print("BT A2DP  RECONNECT");
+    } else if (btConnected) {
         _tft.setTextColor(ST77XX_CYAN, ST77XX_BLACK);
         _tft.print("BT A2DP");
 
@@ -492,10 +498,12 @@ void DisplayService::updatePlayerFields(bool force) {
 
     if (force ||
         s.bluetoothConnected != _lastBtConnected ||
+        s.bluetoothReconnectGrace != _lastBtReconnectGrace ||
         s.bluetoothPeerName != _lastBtPeer) {
 
         drawHeader(
             s.bluetoothConnected,
+            s.bluetoothReconnectGrace,
             s.bluetoothPeerName
         );
 
@@ -504,11 +512,13 @@ void DisplayService::updatePlayerFields(bool force) {
 
     if (force ||
         s.bluetoothConnected != _lastBtConnected ||
+        s.bluetoothReconnectGrace != _lastBtReconnectGrace ||
         s.bluetoothArtist != _lastBtArtist ||
         s.bluetoothTitle != _lastBtTitle) {
 
         drawMetadata(
             s.bluetoothConnected,
+            s.bluetoothReconnectGrace,
             s.bluetoothArtist,
             s.bluetoothTitle
         );
@@ -519,11 +529,13 @@ void DisplayService::updatePlayerFields(bool force) {
 
     if (force ||
         s.bluetoothConnected != _lastBtConnected ||
-        s.bluetoothPlaying != _lastBtPlaying) {
+        s.bluetoothPlaying != _lastBtPlaying ||
+        s.bluetoothReconnectGrace != _lastBtReconnectGrace) {
 
         drawSourceInfo(
             s.bluetoothConnected,
-            s.bluetoothPlaying
+            s.bluetoothPlaying,
+            s.bluetoothReconnectGrace
         );
 
         _lastBtPlaying = s.bluetoothPlaying;
@@ -575,6 +587,7 @@ void DisplayService::updatePlayerFields(bool force) {
     }
 
     _lastBtConnected = s.bluetoothConnected;
+    _lastBtReconnectGrace = s.bluetoothReconnectGrace;
 }
 
 void DisplayService::loop() {
@@ -623,3 +636,4 @@ void DisplayService::redraw() {
     drawStaticLayout();
     updatePlayerFields(true);
 }
+

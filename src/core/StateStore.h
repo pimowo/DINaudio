@@ -12,6 +12,13 @@ enum class AudioSource : uint8_t {
     Bluetooth
 };
 
+enum class BluetoothOwnershipState : uint8_t {
+    Disconnected,
+    ConnectedIdle,
+    Playing,
+    ReconnectGrace
+};
+
 struct DeviceState {
     int volume = 25;
     PlaybackState playback = PlaybackState::Stop;
@@ -24,6 +31,10 @@ struct DeviceState {
     String bluetoothPeerName;
     String bluetoothTitle;
     String bluetoothArtist;
+
+    BluetoothOwnershipState bluetoothOwnership =
+        BluetoothOwnershipState::Disconnected;
+    bool bluetoothReconnectGrace = false;
 
     bool wifiConnected = false;
     String wifiSsid;

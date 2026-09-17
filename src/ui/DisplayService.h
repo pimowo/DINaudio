@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <Arduino.h>
 #include <Adafruit_GFX.h>
@@ -22,6 +22,7 @@ private:
     int _lastVolume = -1;
     bool _lastBtConnected = false;
     bool _lastBtPlaying = false;
+    bool _lastBtReconnectGrace = false;
     String _lastBtPeer;
     String _lastBtTitle;
     String _lastBtArtist;
@@ -39,18 +40,21 @@ private:
 
     void drawHeader(
         bool btConnected,
+        bool reconnectGrace,
         const String& peerName
     );
 
     void drawMetadata(
         bool btConnected,
+        bool reconnectGrace,
         const String& artist,
         const String& title
     );
 
     void drawSourceInfo(
         bool btConnected,
-        bool btPlaying
+        bool btPlaying,
+        bool reconnectGrace
     );
 
     void drawWifiIndicator(
@@ -86,3 +90,4 @@ private:
         size_t maxChars
     );
 };
+

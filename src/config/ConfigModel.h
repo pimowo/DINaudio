@@ -1,9 +1,9 @@
-#pragma once
+﻿#pragma once
 
 #include <Arduino.h>
 
 namespace ConfigSchema {
-static constexpr uint16_t CURRENT_VERSION = 1;
+static constexpr uint16_t CURRENT_VERSION = 3;
 }
 
 struct AudioConfig {
@@ -12,8 +12,8 @@ struct AudioConfig {
 };
 
 struct BluetoothConfig {
-    bool autoReconnect = false;
-    uint32_t reconnectDelayMs = 2500;
+    bool autoReconnect = true;
+    uint32_t reconnectDelayMs = 10000;
 };
 
 struct NetworkConfig {
@@ -27,3 +27,4 @@ struct RuntimeConfig {
     BluetoothConfig bluetooth;
     NetworkConfig network;
 };
+

@@ -4,7 +4,7 @@
 
 ST7789 284×76 oraz zegar NTP Europe/Warsaw zostały przetestowane sprzętowo.
 
-## M1 — FOUNDATION ✅
+## 0.4.0 — Bluetooth ownership i reconnect grace ✓`r`n- App zarządza ownership; grace period 10 s i reconnect ostatniego urządzenia.`r`n- Config schema 3 z migracją zachowującą istniejącą konfigurację.`r`n- Przetestowane sprzętowo.`r`n`r`n## M1 — FOUNDATION ✅
 - BoardConfig
 - StateStore
 - CommandQueue

@@ -42,7 +42,7 @@
 Zmiany głośności z telefonu mogą przeskakiwać o kilka punktów z powodu
 grubszej skali urządzenia źródłowego. Jest to zaakceptowane zachowanie.
 
-## M2 — dalsza weryfikacja
+## 0.4.0 — Bluetooth ownership i reconnect grace`r`n`r`n- [x] ownership BT przez App`r`n- [x] reconnect grace period 10 s i ekran BT RECONNECT`r`n- [x] reconnect ostatniego urządzenia oraz powrót bez końcowego STOP`r`n- [x] Config schema 3; migracja 1 → 2 → 3 zachowuje istniejącą konfigurację`r`n- [x] BT ownership/reconnect przetestowane sprzętowo`r`n`r`n## M2 — dalsza weryfikacja
 
 - [ ] pairing management
 - [ ] heap/min heap

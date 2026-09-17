@@ -33,47 +33,83 @@ void BluetoothService::onMetadata(uint8_t id, const uint8_t* text) {
 void BluetoothService::onPeerName(char* peerName) {
     if (!_instance || !peerName) return;
 
-    strncpy(_instance->_pendingPeerName, peerName,
-            sizeof(_instance->_pendingPeerName) - 1);
-    _instance->_pendingPeerName[sizeof(_instance->_pendingPeerName) - 1] = '\0';
+    strncpy(
+        _instance->_pendingPeerName,
+        peerName,
+        sizeof(_instance->_pendingPeerName) - 1
+    );
+    _instance->_pendingPeerName[
+        sizeof(_instance->_pendingPeerName) - 1
+    ] = '\0';
+
     _instance->_peerNamePending = true;
 }
 
-void BluetoothService::copyMetadata(uint8_t id, const uint8_t* text) {
-    const char* src = reinterpret_cast<const char*>(text);
+void BluetoothService::copyMetadata(
+    uint8_t id,
+    const uint8_t* text
+) {
+    const char* src =
+        reinterpret_cast<const char*>(text);
 
     if (id == ESP_AVRC_MD_ATTR_TITLE) {
-        strncpy(_pendingTitle, src, sizeof(_pendingTitle) - 1);
-        _pendingTitle[sizeof(_pendingTitle) - 1] = '\0';
+        strncpy(
+            _pendingTitle,
+            src,
+            sizeof(_pendingTitle) - 1
+        );
+        _pendingTitle[
+            sizeof(_pendingTitle) - 1
+        ] = '\0';
         _metadataPending = true;
     } else if (id == ESP_AVRC_MD_ATTR_ARTIST) {
-        strncpy(_pendingArtist, src, sizeof(_pendingArtist) - 1);
-        _pendingArtist[sizeof(_pendingArtist) - 1] = '\0';
+        strncpy(
+            _pendingArtist,
+            src,
+            sizeof(_pendingArtist) - 1
+        );
+        _pendingArtist[
+            sizeof(_pendingArtist) - 1
+        ] = '\0';
         _metadataPending = true;
     }
 }
 
-bool BluetoothService::begin(AudioOutput& output, const String& deviceName, int volume) {
+bool BluetoothService::begin(
+    AudioOutput& output,
+    const String& deviceName,
+    int volume
+) {
     if (_started) return true;
 
     if (!output.ready()) {
-        Logger::error("BT", "AudioOutput is not ready");
+        Logger::error(
+            "BT",
+            "AudioOutput is not ready"
+        );
         return false;
     }
 
     _instance = this;
     _deviceName = deviceName;
 
+    // DINaudio owns reconnect policy.
     _sink.set_auto_reconnect(false);
     _sink.set_output(output.stream());
 
-    // Tylko dane potrzebne obecnie DINaudio.
     _sink.set_avrc_metadata_attribute_mask(
-        ESP_AVRC_MD_ATTR_TITLE | ESP_AVRC_MD_ATTR_ARTIST
+        ESP_AVRC_MD_ATTR_TITLE |
+        ESP_AVRC_MD_ATTR_ARTIST
     );
-    _sink.set_avrc_metadata_callback(&BluetoothService::onMetadata);
-    _sink.set_avrc_rn_volumechange(&BluetoothService::onRemoteVolume);
-    _sink.set_peer_name_callback(&BluetoothService::onPeerName);
+    _sink.set_avrc_metadata_callback(
+        &BluetoothService::onMetadata
+    );
+    _sink.set_avrc_rn_volumechange(
+        &BluetoothService::onRemoteVolume
+    );
+    _sink.set_peer_name_callback(
+        &BluetoothService::onPeerName
+    );
 
     _sink.set_volume(mapVolume(volume));
 
@@ -88,10 +124,15 @@ bool BluetoothService::begin(AudioOutput& output, const String& deviceName, int 
     s.bluetoothPeerName = "";
     s.bluetoothTitle = "";
     s.bluetoothArtist = "";
-    s.audioSource = AudioSource::Stop;
+    s.bluetoothOwnership =
+        BluetoothOwnershipState::Disconnected;
+    s.bluetoothReconnectGrace = false;
     StateStore::instance().update(s);
 
-    Logger::info("BT", "A2DP/AVRCP started as " + _deviceName);
+    Logger::info(
+        "BT",
+        "A2DP/AVRCP started as " + _deviceName
+    );
     return true;
 }
 
@@ -118,6 +159,21 @@ void BluetoothService::next() {
 
 void BluetoothService::previous() {
     if (_started) _sink.previous();
+}
+
+bool BluetoothService::reconnect() {
+    if (!_started) return false;
+
+    const bool started = _sink.reconnect();
+
+    Logger::info(
+        "BT",
+        started
+            ? "Reconnect requested"
+            : "Reconnect request unavailable"
+    );
+
+    return started;
 }
 
 void BluetoothService::flushPendingEvents() {
@@ -155,41 +211,35 @@ void BluetoothService::publishState(
     esp_a2d_audio_state_t audioState
 ) {
     const bool connected =
-        connectionState == ESP_A2D_CONNECTION_STATE_CONNECTED;
+        connectionState ==
+        ESP_A2D_CONNECTION_STATE_CONNECTED;
 
     const bool playing =
-        connected && audioState == ESP_A2D_AUDIO_STATE_STARTED;
+        connected &&
+        audioState ==
+        ESP_A2D_AUDIO_STATE_STARTED;
 
     auto s = StateStore::instance().snapshot();
 
     const bool changed =
         s.bluetoothConnected != connected ||
-        s.bluetoothPlaying != playing ||
-        s.audioSource != (connected ? AudioSource::Bluetooth : AudioSource::Stop);
+        s.bluetoothPlaying != playing;
 
     if (!changed) return;
 
+    // BluetoothService reports transport state only.
+    // App owns source arbitration / ownership policy.
     s.bluetoothConnected = connected;
     s.bluetoothPlaying = playing;
-    s.audioSource = connected ? AudioSource::Bluetooth : AudioSource::Stop;
-    s.playback = playing ? PlaybackState::Playing : PlaybackState::Stop;
-
-    if (!connected) {
-        s.bluetoothPeerName = "";
-        s.bluetoothTitle = "";
-        s.bluetoothArtist = "";
-    }
-
-    s.lastMessage = connected
-        ? (playing ? "BT_PLAYING" : "BT_CONNECTED")
-        : "BT_DISCONNECTED";
 
     StateStore::instance().update(s);
 
     Logger::info(
         "BT",
-        String("connection=") + _sink.to_str(connectionState) +
-        " audio=" + _sink.to_str(audioState)
+        String("connection=") +
+        _sink.to_str(connectionState) +
+        " audio=" +
+        _sink.to_str(audioState)
     );
 }
 
@@ -199,18 +249,34 @@ void BluetoothService::loop() {
     flushPendingEvents();
 
     const uint32_t now = millis();
-    if (now - _lastPoll < AppConfig::BT_STATE_POLL_MS) return;
+
+    if (
+        now - _lastPoll <
+        AppConfig::BT_STATE_POLL_MS
+    ) {
+        return;
+    }
+
     _lastPoll = now;
 
-    const auto connectionState = _sink.get_connection_state();
-    const auto audioState = _sink.get_audio_state();
+    const auto connectionState =
+        _sink.get_connection_state();
 
-    if (connectionState == _lastConnectionState &&
-        audioState == _lastAudioState) {
+    const auto audioState =
+        _sink.get_audio_state();
+
+    if (
+        connectionState == _lastConnectionState &&
+        audioState == _lastAudioState
+    ) {
         return;
     }
 
     _lastConnectionState = connectionState;
     _lastAudioState = audioState;
-    publishState(connectionState, audioState);
+
+    publishState(
+        connectionState,
+        audioState
+    );
 }
