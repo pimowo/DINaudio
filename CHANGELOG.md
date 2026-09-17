@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0
+- Przebudowany ekran ST7789 284×76 w układzie inspirowanym yoRadio DSP_ST7789_76.
+- Dodano TimeService z NTP i strefą Europe/Warsaw (CET/CEST).
+- Ekran i zegar 0.3.0 zostały przetestowane sprzętowo.
+
 ## 0.2.1
 - Wewnętrzny fundament konfiguracji runtime: ConfigModel, ConfigManager i schemaVersion 1.
 - Migracja istniejącej konfiguracji NVS (wifi_ssid, wifi_pass, volume) została przetestowana sprzętowo.

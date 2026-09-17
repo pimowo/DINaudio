@@ -1,5 +1,9 @@
 # ROADMAP
 
+## 0.3.0 — display i NTP ✅
+
+ST7789 284×76 oraz zegar NTP Europe/Warsaw zostały przetestowane sprzętowo.
+
 ## M1 — FOUNDATION ✅
 - BoardConfig
 - StateStore

@@ -7,6 +7,7 @@
 #include "../bluetooth/BluetoothService.h"
 #include "../network/WiFiService.h"
 #include "../network/WebService.h"
+#include "../time/TimeService.h"
 
 class App {
 public:
@@ -23,6 +24,7 @@ private:
 
     WiFiService _wifi;
     WebService _web;
+    TimeService _time;
 
     uint32_t _volumeSaveDue = 0;
     bool _volumeDirty = false;

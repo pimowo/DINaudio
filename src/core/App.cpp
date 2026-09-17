@@ -67,6 +67,7 @@ bool App::begin() {
     }
 
     _wifi.begin(_config);
+    _time.begin();
     _web.begin(_config, _wifi);
 
     Logger::info("BOOT", "DINaudio ready");
@@ -140,9 +141,8 @@ void App::processCommands() {
 
         StateStore::instance().update(s);
 
-        if (Board::HAS_DISPLAY) {
-            _display.redraw();
-        }
+        // DisplayService observes StateStore by itself.
+        // Do not force a complete dynamic redraw for every command.
     }
 
     if (_volumeDirty &&
@@ -165,6 +165,7 @@ void App::loop() {
     processCommands();
 
     _wifi.loop();
+    _time.loop();
     _web.loop();
 
     if (Board::HAS_DISPLAY) _display.loop();

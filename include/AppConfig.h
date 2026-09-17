@@ -2,7 +2,7 @@
 
 namespace AppConfig {
 
-static constexpr const char* FW_VERSION = "0.2.1";
+static constexpr const char* FW_VERSION = "0.3.0";
 static constexpr const char* API_VERSION = "v1";
 static constexpr const char* DEVICE_PREFIX = "DINaudio";
 
@@ -28,5 +28,17 @@ static constexpr float TEST_TONE_HZ = 440.0f;
 
 // Bluetooth
 static constexpr uint32_t BT_STATE_POLL_MS = 100;
+
+// Time / NTP
+// Europe/Warsaw: CET (UTC+1), CEST (UTC+2),
+// automatic last-Sunday March / last-Sunday October DST rules.
+static constexpr const char* TZ_INFO =
+    "CET-1CEST,M3.5.0/2,M10.5.0/3";
+static constexpr const char* NTP_SERVER_1 = "pool.ntp.org";
+static constexpr const char* NTP_SERVER_2 = "time.google.com";
+static constexpr uint32_t TIME_POLL_MS = 1000;
+
+// Display
+static constexpr uint32_t VOLUME_SCREEN_TIMEOUT_MS = 2500;
 
 } // namespace AppConfig

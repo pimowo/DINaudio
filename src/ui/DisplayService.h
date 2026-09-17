@@ -16,30 +16,73 @@ private:
     Adafruit_ST7789 _tft;
 
     bool _layoutDrawn = false;
+    bool _volumeScreenActive = false;
+    uint32_t _volumeScreenUntil = 0;
 
     int _lastVolume = -1;
     bool _lastBtConnected = false;
     bool _lastBtPlaying = false;
+    String _lastBtPeer;
     String _lastBtTitle;
     String _lastBtArtist;
 
-    String _lastIp;
-    String _lastApSsid;
+    int _lastWifiLevel = -1;
     bool _lastWifiConnected = false;
     bool _lastApMode = false;
+    uint32_t _lastWifiDrawMs = 0;
+
+    bool _lastTimeValid = false;
+    String _lastClockText;
 
     void drawStaticLayout();
-    void updateDynamicFields(bool force = false);
+    void updatePlayerFields(bool force = false);
 
-    void drawVolume(int volume);
-    void drawBtState(bool connected, bool playing);
-    void drawBottomLine(
+    void drawHeader(
+        bool btConnected,
+        const String& peerName
+    );
+
+    void drawMetadata(
         bool btConnected,
         const String& artist,
-        const String& title,
+        const String& title
+    );
+
+    void drawSourceInfo(
+        bool btConnected,
+        bool btPlaying
+    );
+
+    void drawWifiIndicator(
         bool wifiConnected,
-        const String& ip,
-        bool apMode,
-        const String& apSsid
+        int wifiRssi,
+        bool apMode
+    );
+
+    void drawClock(
+        bool valid,
+        const String& clockText
+    );
+
+    void drawVolumeBar(int volume);
+
+    void showVolumeScreen(
+        int volume,
+        const String& ip
+    );
+
+    void drawVolumeValue(int volume);
+    void drawVolumeIp(const String& ip);
+
+    static int wifiLevel(int rssi);
+
+    static String tftText(
+        const String& value,
+        bool uppercase = true
+    );
+
+    static String fitText(
+        const String& value,
+        size_t maxChars
     );
 };

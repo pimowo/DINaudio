@@ -20,8 +20,8 @@ struct DeviceState {
     bool bluetoothStarted = false;
     bool bluetoothConnected = false;
     bool bluetoothPlaying = false;
-    String bluetoothDeviceName;       // lokalna nazwa DINaudio
-    String bluetoothPeerName;         // nazwa telefonu / źródła
+    String bluetoothDeviceName;
+    String bluetoothPeerName;
     String bluetoothTitle;
     String bluetoothArtist;
 
@@ -33,6 +33,9 @@ struct DeviceState {
     bool apMode = false;
     String apSsid;
     String hostname;
+
+    bool timeValid = false;
+    String clockText;
 
     bool otaInProgress = false;
     String lastMessage = "BOOT";
