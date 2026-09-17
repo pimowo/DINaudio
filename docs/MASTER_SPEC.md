@@ -1,7 +1,7 @@
 # DINaudio — MASTER SPEC
 
-Status: baza po zakończeniu M2.2
-Aktualna wersja firmware: 0.2.0
+Status: baza po zakończeniu M2.2 i wdrożeniu fundamentu konfiguracji runtime
+Aktualna wersja firmware: 0.2.1
 
 Wersjonowanie firmware stosuje Semantic Versioning MAJOR.MINOR.PATCH: 0.x.y oznacza
 okres przed stabilnym 1.0.0, PATCH oznacza poprawki błędów, MINOR nowe funkcje, a
@@ -64,6 +64,12 @@ Profil: `yoradio-esp32u-st7789-76-pcm5102a`
 ## M2.2 zakończone sprzętowo
 
 Wersja: 0.2.0
+
+## 0.2.1 — fundament konfiguracji runtime
+
+Wersja 0.2.1 wprowadza ConfigModel, ConfigManager oraz schemaVersion 1.
+Zachowano istniejące klucze NVS, a migracja istniejącej konfiguracji została
+przetestowana sprzętowo.
 
 - Bluetooth A2DP przez PCM5102A
 - AVRCP Play/Pause/Next/Previous

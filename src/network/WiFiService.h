@@ -3,17 +3,17 @@
 #include <WiFi.h>
 #include <ESPmDNS.h>
 
-class SettingsStore;
+class ConfigManager;
 
 class WiFiService {
 public:
-    bool begin(SettingsStore& settings);
+    bool begin(ConfigManager& config);
     void loop();
     void reconnect();
     void startConfigAp();
 
 private:
-    SettingsStore* _settings = nullptr;
+    ConfigManager* _config = nullptr;
     uint32_t _connectStarted = 0;
     uint32_t _lastRetry = 0;
     String _hostname;

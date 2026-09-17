@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+- Wewnętrzny fundament konfiguracji runtime: ConfigModel, ConfigManager i schemaVersion 1.
+- Migracja istniejącej konfiguracji NVS (wifi_ssid, wifi_pass, volume) została przetestowana sprzętowo.
+
 ## 0.2.0
 - M2.2 — aktualna wersja firmware po sprzętowym zaliczeniu milestone'u
 - sprzętowo potwierdzone AVRCP Play/Pause/Next/Previous

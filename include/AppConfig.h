@@ -2,7 +2,7 @@
 
 namespace AppConfig {
 
-static constexpr const char* FW_VERSION = "0.2.0";
+static constexpr const char* FW_VERSION = "0.2.1";
 static constexpr const char* API_VERSION = "v1";
 static constexpr const char* DEVICE_PREFIX = "DINaudio";
 

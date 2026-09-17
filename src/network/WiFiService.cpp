@@ -1,18 +1,25 @@
 #include "WiFiService.h"
 #include "AppConfig.h"
-#include "../storage/SettingsStore.h"
+#include "../config/ConfigManager.h"
 #include "../core/StateStore.h"
 #include "../diagnostics/Logger.h"
 
 String WiFiService::makeDeviceSuffix() const {
     uint64_t mac = ESP.getEfuseMac();
     char buf[7];
-    snprintf(buf, sizeof(buf), "%06llX", (unsigned long long)(mac & 0xFFFFFFULL));
+
+    snprintf(
+        buf,
+        sizeof(buf),
+        "%06llX",
+        (unsigned long long)(mac & 0xFFFFFFULL)
+    );
+
     return String(buf);
 }
 
-bool WiFiService::begin(SettingsStore& settings) {
-    _settings = &settings;
+bool WiFiService::begin(ConfigManager& config) {
+    _config = &config;
     _hostname = String("dinaudio-") + makeDeviceSuffix();
     _hostname.toLowerCase();
 
@@ -23,7 +30,7 @@ bool WiFiService::begin(SettingsStore& settings) {
     s.hostname = _hostname;
     StateStore::instance().update(s);
 
-    if (_settings->wifiSsid().isEmpty()) {
+    if (_config->wifiSsid().isEmpty()) {
         startConfigAp();
         return true;
     }
@@ -38,8 +45,8 @@ void WiFiService::connectStored() {
         _mdnsStarted = false;
     }
 
-    const String ssid = _settings->wifiSsid();
-    const String pass = _settings->wifiPassword();
+    const String ssid = _config->wifiSsid();
+    const String pass = _config->wifiPassword();
 
     WiFi.mode(WIFI_STA);
     WiFi.setHostname(_hostname.c_str());
@@ -59,12 +66,23 @@ void WiFiService::startConfigAp() {
     delay(20);
     WiFi.mode(WIFI_AP_STA);
 
-    String ap = String(AppConfig::DEVICE_PREFIX) + "-" + makeDeviceSuffix();
+    String ap =
+        String(AppConfig::DEVICE_PREFIX) + "-" + makeDeviceSuffix();
+
     bool ok;
+
     if (String(AppConfig::AP_PASSWORD).isEmpty()) {
-        ok = WiFi.softAP(ap.c_str(), nullptr, AppConfig::AP_CHANNEL);
+        ok = WiFi.softAP(
+            ap.c_str(),
+            nullptr,
+            AppConfig::AP_CHANNEL
+        );
     } else {
-        ok = WiFi.softAP(ap.c_str(), AppConfig::AP_PASSWORD, AppConfig::AP_CHANNEL);
+        ok = WiFi.softAP(
+            ap.c_str(),
+            AppConfig::AP_PASSWORD,
+            AppConfig::AP_CHANNEL
+        );
     }
 
     auto s = StateStore::instance().snapshot();
@@ -74,12 +92,17 @@ void WiFiService::startConfigAp() {
     s.wifiConnected = false;
     StateStore::instance().update(s);
 
-    Logger::warn("WIFI", String("Config AP: ") + ap + " @ " + WiFi.softAPIP().toString());
+    Logger::warn(
+        "WIFI",
+        String("Config AP: ") + ap +
+            " @ " + WiFi.softAPIP().toString()
+    );
 }
 
 void WiFiService::reconnect() {
-    if (!_settings) return;
-    if (_settings->wifiSsid().isEmpty()) {
+    if (!_config) return;
+
+    if (_config->wifiSsid().isEmpty()) {
         startConfigAp();
     } else {
         WiFi.disconnect(false, false);
@@ -100,9 +123,15 @@ void WiFiService::refreshState() {
             if (MDNS.begin(_hostname.c_str())) {
                 MDNS.addService("http", "tcp", 80);
                 _mdnsStarted = true;
-                Logger::info("MDNS", _hostname + ".local");
+                Logger::info(
+                    "MDNS",
+                    _hostname + ".local"
+                );
             } else {
-                Logger::warn("MDNS", "MDNS.begin failed");
+                Logger::warn(
+                    "MDNS",
+                    "MDNS.begin failed"
+                );
             }
         }
     } else {
@@ -117,19 +146,31 @@ void WiFiService::loop() {
 
     if (WiFi.status() == WL_CONNECTED) return;
 
-    if (!_settings || _settings->wifiSsid().isEmpty()) return;
+    if (!_config || _config->wifiSsid().isEmpty()) return;
 
     if (!StateStore::instance().snapshot().apMode &&
-        millis() - _connectStarted > AppConfig::WIFI_CONNECT_TIMEOUT_MS) {
-        Logger::warn("WIFI", "STA timeout -> config AP");
+        millis() - _connectStarted >
+            AppConfig::WIFI_CONNECT_TIMEOUT_MS) {
+
+        Logger::warn(
+            "WIFI",
+            "STA timeout -> config AP"
+        );
+
         startConfigAp();
         _lastRetry = millis();
         return;
     }
 
     if (StateStore::instance().snapshot().apMode &&
-        millis() - _lastRetry > AppConfig::WIFI_RETRY_INTERVAL_MS) {
+        millis() - _lastRetry >
+            AppConfig::WIFI_RETRY_INTERVAL_MS) {
+
         _lastRetry = millis();
-        WiFi.begin(_settings->wifiSsid().c_str(), _settings->wifiPassword().c_str());
+
+        WiFi.begin(
+            _config->wifiSsid().c_str(),
+            _config->wifiPassword().c_str()
+        );
     }
 }

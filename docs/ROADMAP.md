@@ -30,6 +30,11 @@
 
 M2.2 is hardware-tested and accepted on firmware 0.2.0.
 
+### 0.2.1 — runtime configuration foundation
+
+Wewnętrzny fundament konfiguracji runtime: ConfigModel, ConfigManager,
+schemaVersion 1 oraz sprzętowo przetestowana migracja istniejącej konfiguracji NVS.
+
 ### Remaining M2 verification
 - pairing management
 - reconnect stress test

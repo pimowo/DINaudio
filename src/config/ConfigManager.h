@@ -1,0 +1,43 @@
+#pragma once
+
+#include <Arduino.h>
+#include <Preferences.h>
+
+#include "ConfigModel.h"
+
+class ConfigManager {
+public:
+    bool begin();
+
+    const RuntimeConfig& config() const { return _config; }
+    uint16_t schemaVersion() const { return _config.schemaVersion; }
+
+    String wifiSsid() const { return _config.network.wifiSsid; }
+    String wifiPassword() const { return _config.network.wifiPassword; }
+    bool saveWifi(const String& ssid, const String& password);
+    void clearWifi();
+
+    int volume() const { return _config.audio.volume; }
+    void saveVolume(int value);
+
+    int maxVolume() const { return _config.audio.maxVolume; }
+    bool saveMaxVolume(int value);
+
+    bool bluetoothAutoReconnect() const {
+        return _config.bluetooth.autoReconnect;
+    }
+    bool saveBluetoothAutoReconnect(bool enabled);
+
+    uint32_t bluetoothReconnectDelayMs() const {
+        return _config.bluetooth.reconnectDelayMs;
+    }
+    bool saveBluetoothReconnectDelayMs(uint32_t value);
+
+private:
+    Preferences _prefs;
+    RuntimeConfig _config;
+
+    bool load();
+    bool migrateIfNeeded(uint16_t storedVersion);
+    bool initializeSchemaV1();
+};

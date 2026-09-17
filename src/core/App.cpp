@@ -7,7 +7,8 @@
 #include "../diagnostics/Logger.h"
 
 String App::makeBluetoothName() const {
-    const uint32_t suffix = static_cast<uint32_t>(ESP.getEfuseMac() & 0xFFFFFFULL);
+    const uint32_t suffix =
+        static_cast<uint32_t>(ESP.getEfuseMac() & 0xFFFFFFULL);
 
     char mac6[7];
     snprintf(mac6, sizeof(mac6), "%06X", suffix);
@@ -18,7 +19,10 @@ String App::makeBluetoothName() const {
 bool App::begin() {
     Logger::begin(AppConfig::SERIAL_BAUD);
 
-    Logger::info("BOOT", String("DINaudio ") + AppConfig::FW_VERSION);
+    Logger::info(
+        "BOOT",
+        String("DINaudio ") + AppConfig::FW_VERSION
+    );
     Logger::info("BOOT", String("Board: ") + Board::PROFILE_NAME);
 
     if (!CommandQueue::instance().begin()) {
@@ -26,13 +30,18 @@ bool App::begin() {
         return false;
     }
 
-    if (!_settings.begin()) {
-        Logger::error("STORE", "Preferences init failed");
+    if (!_config.begin()) {
+        Logger::error("CONFIG", "ConfigManager init failed");
         return false;
     }
 
+    Logger::info(
+        "CONFIG",
+        "Schema v" + String(_config.schemaVersion())
+    );
+
     auto s = StateStore::instance().snapshot();
-    s.volume = _settings.volume();
+    s.volume = _config.volume();
     s.playback = PlaybackState::Stop;
     s.audioSource = AudioSource::Stop;
     StateStore::instance().update(s);
@@ -42,17 +51,25 @@ bool App::begin() {
 
     if (_audioOutput.begin()) {
         const String btName = makeBluetoothName();
-        if (!_bluetooth.begin(_audioOutput, btName, s.volume)) {
+
+        if (!_bluetooth.begin(
+                _audioOutput,
+                btName,
+                s.volume
+            )) {
             Logger::warn("BT", "Bluetooth unavailable");
         }
     } else {
-        Logger::warn("AUDIO", "Bluetooth skipped because I2S is unavailable");
+        Logger::warn(
+            "AUDIO",
+            "Bluetooth skipped because I2S is unavailable"
+        );
     }
 
-    _wifi.begin(_settings);
-    _web.begin(_settings, _wifi);
+    _wifi.begin(_config);
+    _web.begin(_config, _wifi);
 
-    Logger::info("BOOT", "M2.2 ready");
+    Logger::info("BOOT", "DINaudio ready");
     return true;
 }
 
@@ -64,16 +81,24 @@ void App::processCommands() {
 
         switch (cmd.type) {
             case CommandType::VolumeDelta:
-                s.volume = constrain(s.volume + cmd.value, 0, 100);
+                s.volume = constrain(
+                    s.volume + cmd.value,
+                    0,
+                    _config.maxVolume()
+                );
+
                 _bluetooth.setVolume(s.volume);
                 _volumeDirty = true;
                 _volumeSaveDue = millis() + 1500;
                 break;
 
             case CommandType::SetVolumeAbsolute:
-                s.volume = constrain(cmd.value, 0, 100);
+                s.volume = constrain(
+                    cmd.value,
+                    0,
+                    _config.maxVolume()
+                );
 
-                // Jeśli wartość przyszła z telefonu, nie odsyłamy jej ponownie.
                 if (cmd.source != CommandSource::Bluetooth) {
                     _bluetooth.setVolume(s.volume);
                 }
@@ -120,17 +145,22 @@ void App::processCommands() {
         }
     }
 
-    if (_volumeDirty && (int32_t)(millis() - _volumeSaveDue) >= 0) {
+    if (_volumeDirty &&
+        (int32_t)(millis() - _volumeSaveDue) >= 0) {
+
         _volumeDirty = false;
-        _settings.saveVolume(StateStore::instance().snapshot().volume);
-        Logger::debug("STORE", "Volume saved");
+
+        _config.saveVolume(
+            StateStore::instance().snapshot().volume
+        );
+
+        Logger::debug("CONFIG", "Volume saved");
     }
 }
 
 void App::loop() {
     if (Board::HAS_ENCODER) _encoder.loop();
 
-    // Najpierw odbieramy zdarzenia AVRCP, potem Core przetwarza komendy.
     _bluetooth.loop();
     processCommands();
 

@@ -34,6 +34,11 @@
 - [x] brak migotania TFT
 - [x] firmware 0.2.0 (milestone M2.2)
 
+## 0.2.1 — fundament konfiguracji runtime
+
+- [x] migracja istniejącej konfiguracji NVS przetestowana sprzętowo
+- [x] schemaVersion: 1
+
 Zmiany głośności z telefonu mogą przeskakiwać o kilka punktów z powodu
 grubszej skali urządzenia źródłowego. Jest to zaakceptowane zachowanie.
 

@@ -2,7 +2,7 @@
 #include <Update.h>
 #include "AppConfig.h"
 #include "BuildInfo.h"
-#include "../storage/SettingsStore.h"
+#include "../config/ConfigManager.h"
 #include "../core/StateStore.h"
 #include "../core/CommandQueue.h"
 #include "../diagnostics/Logger.h"
@@ -34,8 +34,8 @@ static const char* sourceName(AudioSource source) {
 
 WebService::WebService() : _server(AppConfig::HTTP_PORT) {}
 
-void WebService::begin(SettingsStore& settings, WiFiService& wifi) {
-    _settings = &settings;
+void WebService::begin(ConfigManager& config, WiFiService& wifi) {
+    _config = &config;
     _wifi = &wifi;
     routes();
     _server.begin();
@@ -50,17 +50,29 @@ void WebService::routes() {
 
     _server.on("/play", HTTP_POST, [this]() { handlePlay(); });
     _server.on("/pause", HTTP_POST, [this]() {
-        CommandQueue::instance().push({CommandType::Pause, CommandSource::Web, 0});
+        CommandQueue::instance().push({
+            CommandType::Pause,
+            CommandSource::Web,
+            0
+        });
         _server.sendHeader("Location", "/");
         _server.send(303);
     });
     _server.on("/next", HTTP_POST, [this]() {
-        CommandQueue::instance().push({CommandType::Next, CommandSource::Web, 0});
+        CommandQueue::instance().push({
+            CommandType::Next,
+            CommandSource::Web,
+            0
+        });
         _server.sendHeader("Location", "/");
         _server.send(303);
     });
     _server.on("/previous", HTTP_POST, [this]() {
-        CommandQueue::instance().push({CommandType::Previous, CommandSource::Web, 0});
+        CommandQueue::instance().push({
+            CommandType::Previous,
+            CommandSource::Web,
+            0
+        });
         _server.sendHeader("Location", "/");
         _server.send(303);
     });
@@ -93,9 +105,13 @@ void WebService::handleRoot() {
     h += "<br><b>Telefon:</b> " +
          (s.bluetoothPeerName.isEmpty() ? String("-") : s.bluetoothPeerName);
     h += "<br><b>Połączenie:</b> ";
-    h += s.bluetoothConnected ? "<span class='ok'>CONNECTED</span>" : "DISCONNECTED";
+    h += s.bluetoothConnected
+        ? "<span class='ok'>CONNECTED</span>"
+        : "DISCONNECTED";
     h += "<br><b>Audio:</b> ";
-    h += s.bluetoothPlaying ? "<span class='ok'>PLAYING</span>" : "IDLE";
+    h += s.bluetoothPlaying
+        ? "<span class='ok'>PLAYING</span>"
+        : "IDLE";
     h += "<br><b>Artysta:</b> " +
          (s.bluetoothArtist.isEmpty() ? String("-") : s.bluetoothArtist);
     h += "<br><b>Utwór:</b> " +
@@ -109,9 +125,12 @@ void WebService::handleRoot() {
     h += "</p></div>";
 
     h += "<div class='card'><h3>Głośność</h3>";
-    h += "<p>VOL: <b>" + String(s.volume) + "</b> / 100</p>";
+    h += "<p>VOL: <b>" + String(s.volume) +
+         "</b> / " + String(_config->maxVolume()) + "</p>";
     h += "<form method='post' action='/volume'>";
-    h += "<input type='number' name='v' min='0' max='100' value='" + String(s.volume) + "'>";
+    h += "<input type='number' name='v' min='0' max='" +
+         String(_config->maxVolume()) +
+         "' value='" + String(s.volume) + "'>";
     h += "<button>Zapisz głośność</button></form>";
     h += "<p><small>Telefon, enkoder i WWW powinny synchronizować tę samą wartość.</small></p>";
     h += "</div>";
@@ -119,13 +138,17 @@ void WebService::handleRoot() {
     h += "<div class='card'><h3>System</h3>";
     h += "<b>Host:</b> " + s.hostname + ".local";
     h += "<br><b>IP:</b> " + s.ip;
-    h += "<br><b>Wi-Fi:</b> " + (s.wifiConnected ? s.wifiSsid : String("offline"));
+    h += "<br><b>Wi-Fi:</b> " +
+         (s.wifiConnected ? s.wifiSsid : String("offline"));
     h += "<br><b>RSSI:</b> " + String(s.wifiRssi) + " dBm";
+    h += "<br><b>Config schema:</b> " +
+         String(_config->schemaVersion());
     h += "</div>";
 
     h += "<div class='card'><h3>Wi-Fi</h3>";
     h += "<form method='post' action='/wifi/save'>";
-    h += "<input name='ssid' placeholder='SSID' value='" + _settings->wifiSsid() + "'>";
+    h += "<input name='ssid' placeholder='SSID' value='" +
+         _config->wifiSsid() + "'>";
     h += "<input name='password' type='password' placeholder='Hasło'>";
     h += "<button>Zapisz Wi-Fi</button></form>";
     h += "<form method='post' action='/wifi/clear'><button class='danger'>Usuń zapisane Wi-Fi</button></form>";
@@ -136,11 +159,17 @@ void WebService::handleRoot() {
     h += "<form method='post' action='/reboot' style='display:inline'><button class='warn'>Restart</button></form>";
     h += "</div>";
 
-    h += "<div class='card'><small>Build: " + String(DINAUDIO_BUILD_DATE) +
-         " / " + String(DINAUDIO_BUILD_GIT) + "</small></div>";
+    h += "<div class='card'><small>Build: " +
+         String(DINAUDIO_BUILD_DATE) + " / " +
+         String(DINAUDIO_BUILD_GIT) + "</small></div>";
+
     h += "</body></html>";
 
-    _server.send(200, "text/html; charset=utf-8", h);
+    _server.send(
+        200,
+        "text/html; charset=utf-8",
+        h
+    );
 }
 
 void WebService::handleStatus() {
@@ -148,14 +177,19 @@ void WebService::handleStatus() {
 
     String json = "{";
     json += "\"fw\":\"" + String(AppConfig::FW_VERSION) + "\",";
+    json += "\"config_schema\":" + String(_config->schemaVersion()) + ",";
     json += "\"volume\":" + String(s.volume) + ",";
+    json += "\"max_volume\":" + String(_config->maxVolume()) + ",";
     json += "\"audio_source\":\"" + String(sourceName(s.audioSource)) + "\",";
-    json += "\"bluetooth_connected\":" + String(s.bluetoothConnected ? "true" : "false") + ",";
-    json += "\"bluetooth_playing\":" + String(s.bluetoothPlaying ? "true" : "false") + ",";
+    json += "\"bluetooth_connected\":" +
+            String(s.bluetoothConnected ? "true" : "false") + ",";
+    json += "\"bluetooth_playing\":" +
+            String(s.bluetoothPlaying ? "true" : "false") + ",";
     json += "\"bluetooth_peer\":\"" + s.bluetoothPeerName + "\",";
     json += "\"bluetooth_artist\":\"" + s.bluetoothArtist + "\",";
     json += "\"bluetooth_title\":\"" + s.bluetoothTitle + "\",";
-    json += "\"wifi_connected\":" + String(s.wifiConnected ? "true" : "false") + ",";
+    json += "\"wifi_connected\":" +
+            String(s.wifiConnected ? "true" : "false") + ",";
     json += "\"ip\":\"" + s.ip + "\"";
     json += "}";
 
@@ -168,55 +202,88 @@ void WebService::handleSaveWifi() {
     ssid.trim();
 
     if (ssid.isEmpty()) {
-        _server.send(400, "text/plain", "SSID required");
+        _server.send(
+            400,
+            "text/plain",
+            "SSID required"
+        );
         return;
     }
 
-    if (!_settings->saveWifi(ssid, password)) {
-        _server.send(500, "text/plain", "Save failed");
+    if (!_config->saveWifi(ssid, password)) {
+        _server.send(
+            500,
+            "text/plain",
+            "Save failed"
+        );
         return;
     }
 
-    _server.send(200, "text/html; charset=utf-8",
+    _server.send(
+        200,
+        "text/html; charset=utf-8",
         htmlHeader("Wi-Fi") +
-        "<h2>Zapisano Wi-Fi</h2><a href='/'>Wróć</a></body></html>");
+        "<h2>Zapisano Wi-Fi</h2><a href='/'>Wróć</a></body></html>"
+    );
 
     delay(150);
     _wifi->reconnect();
 }
 
 void WebService::handleClearWifi() {
-    _settings->clearWifi();
-    _server.send(200, "text/plain", "Wi-Fi cleared. Restarting...");
+    _config->clearWifi();
+    _server.send(
+        200,
+        "text/plain",
+        "Wi-Fi cleared. Restarting..."
+    );
     delay(250);
     ESP.restart();
 }
 
 void WebService::handlePlay() {
-    CommandQueue::instance().push({CommandType::SetPlay, CommandSource::Web, 0});
-    _server.sendHeader("Location", "/");
-    _server.send(303);
-}
-
-void WebService::handleStop() {
-    CommandQueue::instance().push({CommandType::SetStop, CommandSource::Web, 0});
-    _server.sendHeader("Location", "/");
-    _server.send(303);
-}
-
-void WebService::handleVolume() {
-    const int v = constrain(_server.arg("v").toInt(), 0, 100);
     CommandQueue::instance().push({
-        CommandType::SetVolumeAbsolute,
+        CommandType::SetPlay,
         CommandSource::Web,
-        v
+        0
     });
     _server.sendHeader("Location", "/");
     _server.send(303);
 }
 
+void WebService::handleStop() {
+    CommandQueue::instance().push({
+        CommandType::SetStop,
+        CommandSource::Web,
+        0
+    });
+    _server.sendHeader("Location", "/");
+    _server.send(303);
+}
+
+void WebService::handleVolume() {
+    const int v = constrain(
+        _server.arg("v").toInt(),
+        0,
+        _config->maxVolume()
+    );
+
+    CommandQueue::instance().push({
+        CommandType::SetVolumeAbsolute,
+        CommandSource::Web,
+        v
+    });
+
+    _server.sendHeader("Location", "/");
+    _server.send(303);
+}
+
 void WebService::handleReboot() {
-    _server.send(200, "text/plain", "Restarting...");
+    _server.send(
+        200,
+        "text/plain",
+        "Restarting..."
+    );
     delay(200);
     ESP.restart();
 }
@@ -224,31 +291,50 @@ void WebService::handleReboot() {
 void WebService::handleOtaPage() {
     String h = htmlHeader("DINaudio OTA");
     h += "<h1>Aktualizacja firmware</h1><div class='card'>";
-    h += "<p>Aktualny firmware: <b>" + String(AppConfig::FW_VERSION) + "</b></p>";
+    h += "<p>Aktualny firmware: <b>" +
+         String(AppConfig::FW_VERSION) + "</b></p>";
     h += "<form method='POST' action='/update' enctype='multipart/form-data'>";
     h += "<input type='file' name='firmware' accept='.bin' required>";
     h += "<button>Wgraj firmware</button></form>";
     h += "</div><a href='/'>Wróć</a></body></html>";
-    _server.send(200, "text/html; charset=utf-8", h);
+
+    _server.send(
+        200,
+        "text/html; charset=utf-8",
+        h
+    );
 }
 
 void WebService::handleOtaUpload() {
     HTTPUpload& upload = _server.upload();
 
     if (upload.status == UPLOAD_FILE_START) {
-        Logger::info("OTA", "Start: " + upload.filename);
+        Logger::info(
+            "OTA",
+            "Start: " + upload.filename
+        );
 
         auto s = StateStore::instance().snapshot();
         s.otaInProgress = true;
         StateStore::instance().update(s);
 
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) Update.printError(Serial);
-    } else if (upload.status == UPLOAD_FILE_WRITE) {
-        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
             Update.printError(Serial);
+        }
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (Update.write(
+                upload.buf,
+                upload.currentSize
+            ) != upload.currentSize) {
+            Update.printError(Serial);
+        }
     } else if (upload.status == UPLOAD_FILE_END) {
         if (Update.end(true)) {
-            Logger::info("OTA", "Success, bytes=" + String(upload.totalSize));
+            Logger::info(
+                "OTA",
+                "Success, bytes=" +
+                    String(upload.totalSize)
+            );
         } else {
             Update.printError(Serial);
         }
@@ -265,15 +351,22 @@ void WebService::handleOtaDone() {
     StateStore::instance().update(s);
 
     if (!ok) {
-        _server.send(500, "text/html; charset=utf-8",
+        _server.send(
+            500,
+            "text/html; charset=utf-8",
             htmlHeader("OTA error") +
-            "<h2>Aktualizacja nieudana</h2><a href='/update'>Wróć</a></body></html>");
+            "<h2>Aktualizacja nieudana</h2><a href='/update'>Wróć</a></body></html>"
+        );
         return;
     }
 
-    _server.send(200, "text/html; charset=utf-8",
+    _server.send(
+        200,
+        "text/html; charset=utf-8",
         htmlHeader("OTA OK") +
-        "<h2>Firmware zapisany poprawnie</h2><p>Restart...</p></body></html>");
+        "<h2>Firmware zapisany poprawnie</h2><p>Restart...</p></body></html>"
+    );
+
     delay(500);
     ESP.restart();
 }

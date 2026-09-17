@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../storage/SettingsStore.h"
+#include "../config/ConfigManager.h"
 #include "../hal/EncoderInput.h"
 #include "../ui/DisplayService.h"
 #include "../audio/AudioOutput.h"
@@ -14,7 +14,7 @@ public:
     void loop();
 
 private:
-    SettingsStore _settings;
+    ConfigManager _config;
     EncoderInput _encoder;
     DisplayService _display;
 

@@ -2,18 +2,18 @@
 #include <Arduino.h>
 #include <WebServer.h>
 
-class SettingsStore;
+class ConfigManager;
 class WiFiService;
 
 class WebService {
 public:
     WebService();
-    void begin(SettingsStore& settings, WiFiService& wifi);
+    void begin(ConfigManager& config, WiFiService& wifi);
     void loop();
 
 private:
     WebServer _server;
-    SettingsStore* _settings = nullptr;
+    ConfigManager* _config = nullptr;
     WiFiService* _wifi = nullptr;
 
     void routes();
