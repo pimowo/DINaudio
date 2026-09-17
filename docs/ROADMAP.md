@@ -28,7 +28,7 @@
 - bidirectional volume sync
 - TFT BT status and metadata
 
-M2.2 is hardware-tested and accepted on firmware 0.2.1-m2.2.
+M2.2 is hardware-tested and accepted on firmware 0.2.0.
 
 ### Remaining M2 verification
 - pairing management

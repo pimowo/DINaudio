@@ -2,8 +2,15 @@
 
 Autonomiczny moduł audio na klasycznym ESP32.
 
-Aktualny etap: **M1 zakończony i zweryfikowany**.  
-Firmware bazowy: **0.1.1-m1**.
+Aktualny stan: **M2.2 zakończone i zweryfikowane sprzętowo**.
+Aktualna wersja firmware: **0.2.0**.
+
+## Wersjonowanie
+
+DINaudio używa Semantic Versioning MAJOR.MINOR.PATCH. Wersje 0.x.y oznaczają okres
+przed stabilnym 1.0.0; PATCH oznacza poprawki błędów, MINOR nowe funkcje, a MAJOR
+niekompatybilne zmiany architektury lub API. Nazwy M1, M2.1 i M2.2 pozostają nazwami
+historycznych milestone'ów.
 
 ## Struktura
 

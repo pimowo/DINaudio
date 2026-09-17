@@ -32,7 +32,7 @@
 - [x] OTA podczas pracy firmware
 - [x] TFT BT status i metadata
 - [x] brak migotania TFT
-- [x] firmware 0.2.1-m2.2
+- [x] firmware 0.2.0 (milestone M2.2)
 
 Zmiany głośności z telefonu mogą przeskakiwać o kilka punktów z powodu
 grubszej skali urządzenia źródłowego. Jest to zaakceptowane zachowanie.

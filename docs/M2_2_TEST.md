@@ -1,6 +1,6 @@
 # DINaudio M2.2 — AVRCP / metadata / volume sync
 
-Firmware: `0.2.1-m2.2`
+Firmware: `0.2.0` (milestone M2.2)
 
 ## Testy obowiązkowe
 
