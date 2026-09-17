@@ -40,7 +40,6 @@ bool App::begin() {
     if (Board::HAS_ENCODER) _encoder.begin();
     if (Board::HAS_DISPLAY) _display.begin();
 
-    // Docelowa kolejność DINaudio: audio/BT przed Wi-Fi.
     if (_audioOutput.begin()) {
         const String btName = makeBluetoothName();
         if (!_bluetooth.begin(_audioOutput, btName, s.volume)) {
@@ -53,7 +52,7 @@ bool App::begin() {
     _wifi.begin(_settings);
     _web.begin(_settings, _wifi);
 
-    Logger::info("BOOT", "M2.1 ready");
+    Logger::info("BOOT", "M2.2 ready");
     return true;
 }
 
@@ -67,23 +66,50 @@ void App::processCommands() {
             case CommandType::VolumeDelta:
                 s.volume = constrain(s.volume + cmd.value, 0, 100);
                 _bluetooth.setVolume(s.volume);
+                _volumeDirty = true;
+                _volumeSaveDue = millis() + 1500;
+                break;
+
+            case CommandType::SetVolumeAbsolute:
+                s.volume = constrain(cmd.value, 0, 100);
+
+                // Jeśli wartość przyszła z telefonu, nie odsyłamy jej ponownie.
+                if (cmd.source != CommandSource::Bluetooth) {
+                    _bluetooth.setVolume(s.volume);
+                }
 
                 _volumeDirty = true;
                 _volumeSaveDue = millis() + 1500;
                 break;
 
             case CommandType::TogglePlayStop:
-                // M2.1 nie wprowadza jeszcze sterowania AVRCP.
-                // Przycisk zostaje w architekturze, ale nie udaje PLAY/PAUSE.
-                s.lastMessage = "AVRCP_PENDING";
-                break;
-
-            case CommandType::SetStop:
-                s.lastMessage = "AVRCP_PENDING";
+                if (s.bluetoothConnected) {
+                    if (s.bluetoothPlaying) {
+                        _bluetooth.pause();
+                    } else {
+                        _bluetooth.play();
+                    }
+                }
                 break;
 
             case CommandType::SetPlay:
-                s.lastMessage = "AVRCP_PENDING";
+                _bluetooth.play();
+                break;
+
+            case CommandType::Pause:
+                _bluetooth.pause();
+                break;
+
+            case CommandType::SetStop:
+                _bluetooth.stop();
+                break;
+
+            case CommandType::Next:
+                _bluetooth.next();
+                break;
+
+            case CommandType::Previous:
+                _bluetooth.previous();
                 break;
         }
 
@@ -102,19 +128,16 @@ void App::processCommands() {
 }
 
 void App::loop() {
-    if (Board::HAS_ENCODER) {
-        _encoder.loop();
-    }
+    if (Board::HAS_ENCODER) _encoder.loop();
 
+    // Najpierw odbieramy zdarzenia AVRCP, potem Core przetwarza komendy.
+    _bluetooth.loop();
     processCommands();
 
-    _bluetooth.loop();
     _wifi.loop();
     _web.loop();
 
-    if (Board::HAS_DISPLAY) {
-        _display.loop();
-    }
+    if (Board::HAS_DISPLAY) _display.loop();
 
     delay(0);
 }

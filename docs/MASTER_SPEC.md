@@ -1,7 +1,7 @@
 # DINaudio — MASTER SPEC
 
-Status: baza po zakończeniu M1  
-Firmware bazowy: `0.1.1-m1`
+Status: baza po zakończeniu M2.2
+Firmware bazowy: `0.2.1-m2.2`
 
 ## Cel
 
@@ -56,6 +56,15 @@ Profil: `yoradio-esp32u-st7789-76-pcm5102a`
 - mDNS
 - OTA przez WWW
 
+## M2.2 zakończone sprzętowo
+
+- Bluetooth A2DP przez PCM5102A
+- AVRCP Play/Pause/Next/Previous
+- dwukierunkowa synchronizacja głośności
+- metadata artist/title oraz peer/device info, jeśli dostępne
+- równoległa praca Bluetooth, Wi-Fi, WWW i OTA
+- TFT z BT status/metadata bez migotania
+
 ## Następny milestone
 
-M2 — Bluetooth A2DP + AVRCP.
+M3 — Radio.

@@ -14,12 +14,25 @@
 - OTA
 
 ## M2 — BLUETOOTH
+
+### M2.1 — A2DP baseline ✅
 - A2DP Sink
-- AVRCP
-- metadata
-- volume sync
-- pairing management
+- PCM5102A audio
 - coexistence BT + Wi-Fi
+- WWW and OTA
+
+### M2.2 — AVRCP and metadata ✅
+- AVRCP Play/Pause/Next/Previous
+- metadata artist/title
+- peer/device info when available
+- bidirectional volume sync
+- TFT BT status and metadata
+
+M2.2 is hardware-tested and accepted on firmware 0.2.1-m2.2.
+
+### Remaining M2 verification
+- pairing management
+- reconnect stress test
 
 ## M3 — RADIO
 - HTTP/HTTPS stream

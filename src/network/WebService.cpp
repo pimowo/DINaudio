@@ -28,8 +28,7 @@ static const char* sourceName(AudioSource source) {
         case AudioSource::Bluetooth: return "BLUETOOTH";
         case AudioSource::Test: return "TEST";
         case AudioSource::Stop:
-        default:
-            return "STOP";
+        default: return "STOP";
     }
 }
 
@@ -49,8 +48,22 @@ void WebService::routes() {
     _server.on("/wifi/save", HTTP_POST, [this]() { handleSaveWifi(); });
     _server.on("/wifi/clear", HTTP_POST, [this]() { handleClearWifi(); });
 
-    // Zachowane na poziomie API z M1. W M2.1 PLAY/STOP nie sterują jeszcze AVRCP.
     _server.on("/play", HTTP_POST, [this]() { handlePlay(); });
+    _server.on("/pause", HTTP_POST, [this]() {
+        CommandQueue::instance().push({CommandType::Pause, CommandSource::Web, 0});
+        _server.sendHeader("Location", "/");
+        _server.send(303);
+    });
+    _server.on("/next", HTTP_POST, [this]() {
+        CommandQueue::instance().push({CommandType::Next, CommandSource::Web, 0});
+        _server.sendHeader("Location", "/");
+        _server.send(303);
+    });
+    _server.on("/previous", HTTP_POST, [this]() {
+        CommandQueue::instance().push({CommandType::Previous, CommandSource::Web, 0});
+        _server.sendHeader("Location", "/");
+        _server.send(303);
+    });
     _server.on("/stop", HTTP_POST, [this]() { handleStop(); });
     _server.on("/volume", HTTP_POST, [this]() { handleVolume(); });
     _server.on("/reboot", HTTP_POST, [this]() { handleReboot(); });
@@ -72,41 +85,48 @@ void WebService::handleRoot() {
     const auto s = StateStore::instance().snapshot();
 
     String h = htmlHeader("DINaudio");
-
     h += "<h1>DINaudio</h1>";
 
-    h += "<div class='card'><h3>M2.1 Bluetooth test</h3>";
+    h += "<div class='card'><h3>Bluetooth / AVRCP</h3>";
     h += "<b>Firmware:</b> " + String(AppConfig::FW_VERSION);
-    h += "<br><b>Bluetooth:</b> ";
-    h += s.bluetoothStarted ? "<span class='ok'>STARTED</span>" : "<span class='warn'>OFF</span>";
-    h += "<br><b>Nazwa BT:</b> " + s.bluetoothDeviceName;
+    h += "<br><b>DINaudio BT:</b> " + s.bluetoothDeviceName;
+    h += "<br><b>Telefon:</b> " +
+         (s.bluetoothPeerName.isEmpty() ? String("-") : s.bluetoothPeerName);
     h += "<br><b>Połączenie:</b> ";
     h += s.bluetoothConnected ? "<span class='ok'>CONNECTED</span>" : "DISCONNECTED";
-    h += "<br><b>Audio BT:</b> ";
+    h += "<br><b>Audio:</b> ";
     h += s.bluetoothPlaying ? "<span class='ok'>PLAYING</span>" : "IDLE";
+    h += "<br><b>Artysta:</b> " +
+         (s.bluetoothArtist.isEmpty() ? String("-") : s.bluetoothArtist);
+    h += "<br><b>Utwór:</b> " +
+         (s.bluetoothTitle.isEmpty() ? String("-") : s.bluetoothTitle);
     h += "<br><b>Źródło:</b> " + String(sourceName(s.audioSource));
+    h += "<p>";
+    h += "<form method='post' action='/previous' style='display:inline'><button>&lt;&lt;</button></form>";
+    h += "<form method='post' action='/play' style='display:inline'><button>PLAY</button></form>";
+    h += "<form method='post' action='/pause' style='display:inline'><button>PAUSE</button></form>";
+    h += "<form method='post' action='/next' style='display:inline'><button>&gt;&gt;</button></form>";
+    h += "</p></div>";
+
+    h += "<div class='card'><h3>Głośność</h3>";
+    h += "<p>VOL: <b>" + String(s.volume) + "</b> / 100</p>";
+    h += "<form method='post' action='/volume'>";
+    h += "<input type='number' name='v' min='0' max='100' value='" + String(s.volume) + "'>";
+    h += "<button>Zapisz głośność</button></form>";
+    h += "<p><small>Telefon, enkoder i WWW powinny synchronizować tę samą wartość.</small></p>";
     h += "</div>";
 
     h += "<div class='card'><h3>System</h3>";
-    h += "<b>API:</b> " + String(AppConfig::API_VERSION);
-    h += "<br><b>Host:</b> " + s.hostname + ".local";
+    h += "<b>Host:</b> " + s.hostname + ".local";
     h += "<br><b>IP:</b> " + s.ip;
     h += "<br><b>Wi-Fi:</b> " + (s.wifiConnected ? s.wifiSsid : String("offline"));
     h += "<br><b>RSSI:</b> " + String(s.wifiRssi) + " dBm";
     h += "</div>";
 
-    h += "<div class='card'><h3>Głośność</h3>";
-    h += "<p>DINaudio: <b>" + String(s.volume) + "</b> / 100</p>";
-    h += "<form method='post' action='/volume'>";
-    h += "<input type='number' name='v' min='0' max='100' value='" + String(s.volume) + "'>";
-    h += "<button>Zapisz głośność</button></form>";
-    h += "<p><small>M2.1: pełną synchronizację AVRCP Absolute Volume sprawdzimy w M2.2.</small></p>";
-    h += "</div>";
-
     h += "<div class='card'><h3>Wi-Fi</h3>";
     h += "<form method='post' action='/wifi/save'>";
     h += "<input name='ssid' placeholder='SSID' value='" + _settings->wifiSsid() + "'>";
-    h += "<input name='password' type='password' placeholder='Hasło (zostaw puste tylko dla sieci otwartej)'>";
+    h += "<input name='password' type='password' placeholder='Hasło'>";
     h += "<button>Zapisz Wi-Fi</button></form>";
     h += "<form method='post' action='/wifi/clear'><button class='danger'>Usuń zapisane Wi-Fi</button></form>";
     h += "</div>";
@@ -116,7 +136,8 @@ void WebService::handleRoot() {
     h += "<form method='post' action='/reboot' style='display:inline'><button class='warn'>Restart</button></form>";
     h += "</div>";
 
-    h += "<div class='card'><small>Build: " + String(DINAUDIO_BUILD_DATE) + " / " + String(DINAUDIO_BUILD_GIT) + "</small></div>";
+    h += "<div class='card'><small>Build: " + String(DINAUDIO_BUILD_DATE) +
+         " / " + String(DINAUDIO_BUILD_GIT) + "</small></div>";
     h += "</body></html>";
 
     _server.send(200, "text/html; charset=utf-8", h);
@@ -127,20 +148,15 @@ void WebService::handleStatus() {
 
     String json = "{";
     json += "\"fw\":\"" + String(AppConfig::FW_VERSION) + "\",";
-    json += "\"api\":\"" + String(AppConfig::API_VERSION) + "\",";
-    json += "\"hostname\":\"" + s.hostname + "\",";
-    json += "\"wifi_connected\":" + String(s.wifiConnected ? "true" : "false") + ",";
-    json += "\"ssid\":\"" + s.wifiSsid + "\",";
-    json += "\"ip\":\"" + s.ip + "\",";
-    json += "\"rssi\":" + String(s.wifiRssi) + ",";
-    json += "\"ap_mode\":" + String(s.apMode ? "true" : "false") + ",";
     json += "\"volume\":" + String(s.volume) + ",";
-    json += "\"playing\":" + String(s.playback == PlaybackState::Playing ? "true" : "false") + ",";
     json += "\"audio_source\":\"" + String(sourceName(s.audioSource)) + "\",";
-    json += "\"bluetooth_started\":" + String(s.bluetoothStarted ? "true" : "false") + ",";
-    json += "\"bluetooth_name\":\"" + s.bluetoothDeviceName + "\",";
     json += "\"bluetooth_connected\":" + String(s.bluetoothConnected ? "true" : "false") + ",";
-    json += "\"bluetooth_playing\":" + String(s.bluetoothPlaying ? "true" : "false");
+    json += "\"bluetooth_playing\":" + String(s.bluetoothPlaying ? "true" : "false") + ",";
+    json += "\"bluetooth_peer\":\"" + s.bluetoothPeerName + "\",";
+    json += "\"bluetooth_artist\":\"" + s.bluetoothArtist + "\",";
+    json += "\"bluetooth_title\":\"" + s.bluetoothTitle + "\",";
+    json += "\"wifi_connected\":" + String(s.wifiConnected ? "true" : "false") + ",";
+    json += "\"ip\":\"" + s.ip + "\"";
     json += "}";
 
     _server.send(200, "application/json", json);
@@ -149,8 +165,8 @@ void WebService::handleStatus() {
 void WebService::handleSaveWifi() {
     String ssid = _server.arg("ssid");
     String password = _server.arg("password");
-
     ssid.trim();
+
     if (ssid.isEmpty()) {
         _server.send(400, "text/plain", "SSID required");
         return;
@@ -163,8 +179,7 @@ void WebService::handleSaveWifi() {
 
     _server.send(200, "text/html; charset=utf-8",
         htmlHeader("Wi-Fi") +
-        "<h2>Zapisano Wi-Fi</h2><p>DINaudio spróbuje połączyć się z nową siecią.</p>"
-        "<a href='/'>Wróć</a></body></html>");
+        "<h2>Zapisano Wi-Fi</h2><a href='/'>Wróć</a></body></html>");
 
     delay(150);
     _wifi->reconnect();
@@ -191,11 +206,11 @@ void WebService::handleStop() {
 
 void WebService::handleVolume() {
     const int v = constrain(_server.arg("v").toInt(), 0, 100);
-    const auto s = StateStore::instance().snapshot();
-    const int delta = v - s.volume;
-
-    CommandQueue::instance().push({CommandType::VolumeDelta, CommandSource::Web, delta});
-
+    CommandQueue::instance().push({
+        CommandType::SetVolumeAbsolute,
+        CommandSource::Web,
+        v
+    });
     _server.sendHeader("Location", "/");
     _server.send(303);
 }
@@ -208,16 +223,12 @@ void WebService::handleReboot() {
 
 void WebService::handleOtaPage() {
     String h = htmlHeader("DINaudio OTA");
-    h += "<h1>Aktualizacja firmware</h1>";
-    h += "<div class='card'>";
+    h += "<h1>Aktualizacja firmware</h1><div class='card'>";
     h += "<p>Aktualny firmware: <b>" + String(AppConfig::FW_VERSION) + "</b></p>";
-    h += "<p>Wybierz <code>firmware.bin</code> wygenerowany przez PlatformIO.</p>";
     h += "<form method='POST' action='/update' enctype='multipart/form-data'>";
     h += "<input type='file' name='firmware' accept='.bin' required>";
     h += "<button>Wgraj firmware</button></form>";
-    h += "<p><small>Nie odłączaj zasilania podczas aktualizacji.</small></p>";
     h += "</div><a href='/'>Wróć</a></body></html>";
-
     _server.send(200, "text/html; charset=utf-8", h);
 }
 
@@ -231,23 +242,18 @@ void WebService::handleOtaUpload() {
         s.otaInProgress = true;
         StateStore::instance().update(s);
 
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
-            Update.printError(Serial);
-        }
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) Update.printError(Serial);
     } else if (upload.status == UPLOAD_FILE_WRITE) {
-        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
             Update.printError(Serial);
-        }
     } else if (upload.status == UPLOAD_FILE_END) {
         if (Update.end(true)) {
             Logger::info("OTA", "Success, bytes=" + String(upload.totalSize));
         } else {
             Update.printError(Serial);
-            Logger::error("OTA", "Update.end failed");
         }
     } else if (upload.status == UPLOAD_FILE_ABORTED) {
         Update.abort();
-        Logger::warn("OTA", "Upload aborted");
     }
 }
 
@@ -267,8 +273,7 @@ void WebService::handleOtaDone() {
 
     _server.send(200, "text/html; charset=utf-8",
         htmlHeader("OTA OK") +
-        "<h2>Firmware zapisany poprawnie</h2><p>DINaudio uruchomi się ponownie.</p></body></html>");
-
+        "<h2>Firmware zapisany poprawnie</h2><p>Restart...</p></body></html>");
     delay(500);
     ESP.restart();
 }

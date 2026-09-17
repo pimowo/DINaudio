@@ -20,19 +20,17 @@ void DisplayService::begin() {
 
 void DisplayService::drawStaticLayout() {
     _tft.fillScreen(ST77XX_BLACK);
-
     _tft.fillRect(0, 0, _tft.width(), 24, ST77XX_BLUE);
 
     _tft.setTextColor(ST77XX_WHITE);
     _tft.setTextSize(2);
     _tft.setCursor(8, 5);
-    _tft.print("DINaudio M2.1");
+    _tft.print("DINaudio M2.2");
 
     _layoutDrawn = true;
 }
 
 void DisplayService::drawVolume(int volume) {
-    // Czyścimy tylko obszar wartości VOL, nie cały ekran.
     _tft.fillRect(8, 32, 120, 24, ST77XX_BLACK);
 
     _tft.setTextSize(2);
@@ -42,7 +40,6 @@ void DisplayService::drawVolume(int volume) {
 }
 
 void DisplayService::drawBtState(bool connected, bool playing) {
-    // Czyścimy tylko prawą część drugiego wiersza.
     _tft.fillRect(140, 32, _tft.width() - 140, 24, ST77XX_BLACK);
 
     _tft.setTextSize(2);
@@ -62,18 +59,34 @@ void DisplayService::drawBtState(bool connected, bool playing) {
     }
 }
 
-void DisplayService::drawNetworkLine(
+void DisplayService::drawBottomLine(
+    bool btConnected,
+    const String& artist,
+    const String& title,
     bool wifiConnected,
     const String& ip,
     bool apMode,
     const String& apSsid
 ) {
-    // Dolny wiersz czyścimy osobno.
     _tft.fillRect(0, 58, _tft.width(), 18, ST77XX_BLACK);
 
     _tft.setTextSize(1);
     _tft.setTextColor(ST77XX_CYAN);
     _tft.setCursor(8, 62);
+
+    if (btConnected && (!artist.isEmpty() || !title.isEmpty())) {
+        String line;
+        if (!artist.isEmpty()) line += artist;
+        if (!artist.isEmpty() && !title.isEmpty()) line += " - ";
+        if (!title.isEmpty()) line += title;
+
+        // 284 px przy font 1 to ok. 46-47 znaków.
+        if (line.length() > 45) {
+            line = line.substring(0, 42) + "...";
+        }
+        _tft.print(line);
+        return;
+    }
 
     if (wifiConnected) {
         _tft.print(ip);
@@ -104,18 +117,26 @@ void DisplayService::updateDynamicFields(bool force) {
     }
 
     if (force ||
+        s.bluetoothConnected != _lastBtConnected ||
+        s.bluetoothTitle != _lastBtTitle ||
+        s.bluetoothArtist != _lastBtArtist ||
         s.wifiConnected != _lastWifiConnected ||
         s.ip != _lastIp ||
         s.apMode != _lastApMode ||
         s.apSsid != _lastApSsid) {
 
-        drawNetworkLine(
+        drawBottomLine(
+            s.bluetoothConnected,
+            s.bluetoothArtist,
+            s.bluetoothTitle,
             s.wifiConnected,
             s.ip,
             s.apMode,
             s.apSsid
         );
 
+        _lastBtTitle = s.bluetoothTitle;
+        _lastBtArtist = s.bluetoothArtist;
         _lastWifiConnected = s.wifiConnected;
         _lastIp = s.ip;
         _lastApMode = s.apMode;
@@ -130,15 +151,10 @@ void DisplayService::loop() {
         return;
     }
 
-    // Bardzo lekki polling. Bez pełnego redraw i bez fillScreen().
     updateDynamicFields(false);
 }
 
 void DisplayService::redraw() {
-    // Zachowujemy API dla reszty projektu, ale nie czyścimy całego TFT.
-    if (!_layoutDrawn) {
-        drawStaticLayout();
-    }
-
+    if (!_layoutDrawn) drawStaticLayout();
     updateDynamicFields(true);
 }

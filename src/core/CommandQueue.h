@@ -3,14 +3,19 @@
 
 enum class CommandType : uint8_t {
     VolumeDelta,
+    SetVolumeAbsolute,
     TogglePlayStop,
     SetStop,
-    SetPlay
+    SetPlay,
+    Pause,
+    Next,
+    Previous
 };
 
 enum class CommandSource : uint8_t {
     Encoder,
     Web,
+    Bluetooth,
     System
 };
 

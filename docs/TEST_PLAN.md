@@ -18,17 +18,27 @@
 - [x] firmware po OTA uruchamia się poprawnie
 - [x] `0.1.1-m1` potwierdzone po OTA
 
-## M2 — plan
+## M2.2 — zaliczone sprzętowo
 
-- [ ] Bluetooth init
-- [ ] pairing
-- [ ] A2DP audio
-- [ ] AVRCP metadata
-- [ ] AVRCP play/pause
-- [ ] volume sync
-- [ ] Absolute Volume
-- [ ] connect/disconnect
-- [ ] BT + Wi-Fi
-- [ ] BT + WWW
+- [x] Bluetooth init
+- [x] A2DP audio przez PCM5102A
+- [x] AVRCP metadata
+- [x] AVRCP play/pause
+- [x] AVRCP Next/Previous
+- [x] dwukierunkowa synchronizacja głośności
+- [x] connect/disconnect
+- [x] BT + Wi-Fi
+- [x] BT + WWW
+- [x] OTA podczas pracy firmware
+- [x] TFT BT status i metadata
+- [x] brak migotania TFT
+- [x] firmware 0.2.1-m2.2
+
+Zmiany głośności z telefonu mogą przeskakiwać o kilka punktów z powodu
+grubszej skali urządzenia źródłowego. Jest to zaakceptowane zachowanie.
+
+## M2 — dalsza weryfikacja
+
+- [ ] pairing management
 - [ ] heap/min heap
 - [ ] reconnect stress test

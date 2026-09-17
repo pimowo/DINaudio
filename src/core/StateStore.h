@@ -20,7 +20,10 @@ struct DeviceState {
     bool bluetoothStarted = false;
     bool bluetoothConnected = false;
     bool bluetoothPlaying = false;
-    String bluetoothDeviceName;
+    String bluetoothDeviceName;       // lokalna nazwa DINaudio
+    String bluetoothPeerName;         // nazwa telefonu / źródła
+    String bluetoothTitle;
+    String bluetoothArtist;
 
     bool wifiConnected = false;
     String wifiSsid;

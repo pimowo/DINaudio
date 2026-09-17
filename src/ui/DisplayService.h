@@ -20,6 +20,9 @@ private:
     int _lastVolume = -1;
     bool _lastBtConnected = false;
     bool _lastBtPlaying = false;
+    String _lastBtTitle;
+    String _lastBtArtist;
+
     String _lastIp;
     String _lastApSsid;
     bool _lastWifiConnected = false;
@@ -30,7 +33,10 @@ private:
 
     void drawVolume(int volume);
     void drawBtState(bool connected, bool playing);
-    void drawNetworkLine(
+    void drawBottomLine(
+        bool btConnected,
+        const String& artist,
+        const String& title,
         bool wifiConnected,
         const String& ip,
         bool apMode,
