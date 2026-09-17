@@ -1,9 +1,19 @@
 #include "App.h"
+
 #include "AppConfig.h"
 #include "BoardConfig.h"
 #include "StateStore.h"
 #include "CommandQueue.h"
 #include "../diagnostics/Logger.h"
+
+String App::makeBluetoothName() const {
+    const uint32_t suffix = static_cast<uint32_t>(ESP.getEfuseMac() & 0xFFFFFFULL);
+
+    char mac6[7];
+    snprintf(mac6, sizeof(mac6), "%06X", suffix);
+
+    return String(AppConfig::DEVICE_PREFIX) + "-" + mac6;
+}
 
 bool App::begin() {
     Logger::begin(AppConfig::SERIAL_BAUD);
@@ -24,57 +34,64 @@ bool App::begin() {
     auto s = StateStore::instance().snapshot();
     s.volume = _settings.volume();
     s.playback = PlaybackState::Stop;
+    s.audioSource = AudioSource::Stop;
     StateStore::instance().update(s);
 
     if (Board::HAS_ENCODER) _encoder.begin();
     if (Board::HAS_DISPLAY) _display.begin();
 
-    if (!_tone.begin()) {
-        Logger::warn("AUDIO", "Tone unavailable");
+    // Docelowa kolejność DINaudio: audio/BT przed Wi-Fi.
+    if (_audioOutput.begin()) {
+        const String btName = makeBluetoothName();
+        if (!_bluetooth.begin(_audioOutput, btName, s.volume)) {
+            Logger::warn("BT", "Bluetooth unavailable");
+        }
+    } else {
+        Logger::warn("AUDIO", "Bluetooth skipped because I2S is unavailable");
     }
-    _tone.setVolume(s.volume);
-    _tone.setPlaying(false);
 
     _wifi.begin(_settings);
     _web.begin(_settings, _wifi);
 
-    Logger::info("BOOT", "M1 ready");
+    Logger::info("BOOT", "M2.1 ready");
     return true;
 }
 
 void App::processCommands() {
     Command cmd;
+
     while (CommandQueue::instance().pop(cmd)) {
         auto s = StateStore::instance().snapshot();
 
         switch (cmd.type) {
             case CommandType::VolumeDelta:
                 s.volume = constrain(s.volume + cmd.value, 0, 100);
-                _tone.setVolume(s.volume);
+                _bluetooth.setVolume(s.volume);
+
                 _volumeDirty = true;
                 _volumeSaveDue = millis() + 1500;
                 break;
 
             case CommandType::TogglePlayStop:
-                s.playback = (s.playback == PlaybackState::Playing)
-                    ? PlaybackState::Stop
-                    : PlaybackState::Playing;
-                _tone.setPlaying(s.playback == PlaybackState::Playing);
+                // M2.1 nie wprowadza jeszcze sterowania AVRCP.
+                // Przycisk zostaje w architekturze, ale nie udaje PLAY/PAUSE.
+                s.lastMessage = "AVRCP_PENDING";
                 break;
 
             case CommandType::SetStop:
-                s.playback = PlaybackState::Stop;
-                _tone.setPlaying(false);
+                s.lastMessage = "AVRCP_PENDING";
                 break;
 
             case CommandType::SetPlay:
-                s.playback = PlaybackState::Playing;
-                _tone.setPlaying(true);
+                s.lastMessage = "AVRCP_PENDING";
                 break;
         }
 
         StateStore::instance().update(s);
-        if (Board::HAS_DISPLAY) _display.redraw();
+
+        if (Board::HAS_DISPLAY) {
+            _display.redraw();
+        }
     }
 
     if (_volumeDirty && (int32_t)(millis() - _volumeSaveDue) >= 0) {
@@ -85,15 +102,19 @@ void App::processCommands() {
 }
 
 void App::loop() {
-    if (Board::HAS_ENCODER) _encoder.loop();
+    if (Board::HAS_ENCODER) {
+        _encoder.loop();
+    }
 
     processCommands();
 
-    _tone.loop();
+    _bluetooth.loop();
     _wifi.loop();
     _web.loop();
 
-    if (Board::HAS_DISPLAY) _display.loop();
+    if (Board::HAS_DISPLAY) {
+        _display.loop();
+    }
 
-    delay(0); // yield FreeRTOS/Wi-Fi; nie jest blokującym opóźnieniem
+    delay(0);
 }

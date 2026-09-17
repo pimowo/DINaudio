@@ -6,9 +6,21 @@ enum class PlaybackState : uint8_t {
     Playing
 };
 
+enum class AudioSource : uint8_t {
+    Stop,
+    Test,
+    Bluetooth
+};
+
 struct DeviceState {
     int volume = 25;
     PlaybackState playback = PlaybackState::Stop;
+    AudioSource audioSource = AudioSource::Stop;
+
+    bool bluetoothStarted = false;
+    bool bluetoothConnected = false;
+    bool bluetoothPlaying = false;
+    String bluetoothDeviceName;
 
     bool wifiConnected = false;
     String wifiSsid;

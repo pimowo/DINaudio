@@ -1,6 +1,6 @@
 #include "DisplayService.h"
+
 #include "BoardConfig.h"
-#include "AppConfig.h"
 #include "../core/StateStore.h"
 
 DisplayService::DisplayService()
@@ -8,56 +8,137 @@ DisplayService::DisplayService()
 
 void DisplayService::begin() {
     SPI.begin(Board::TFT_SCK, -1, Board::TFT_MOSI, Board::TFT_CS);
+
     _tft.init(Board::TFT_INIT_W, Board::TFT_INIT_H);
     _tft.setRotation(Board::TFT_ROTATION);
     _tft.invertDisplay(false);
     _tft.setTextWrap(false);
-    _tft.fillScreen(ST77XX_BLACK);
-    redraw();
+
+    drawStaticLayout();
+    updateDynamicFields(true);
 }
 
-void DisplayService::loop() {
-    if (millis() - _lastRefresh >= 1000) {
-        _lastRefresh = millis();
-        redraw();
-    }
-}
-
-void DisplayService::redraw() {
-    DeviceState s = StateStore::instance().snapshot();
-
+void DisplayService::drawStaticLayout() {
     _tft.fillScreen(ST77XX_BLACK);
 
     _tft.fillRect(0, 0, _tft.width(), 24, ST77XX_BLUE);
+
     _tft.setTextColor(ST77XX_WHITE);
     _tft.setTextSize(2);
     _tft.setCursor(8, 5);
-    _tft.print("DINaudio M1");
+    _tft.print("DINaudio M2.1");
+
+    _layoutDrawn = true;
+}
+
+void DisplayService::drawVolume(int volume) {
+    // Czyścimy tylko obszar wartości VOL, nie cały ekran.
+    _tft.fillRect(8, 32, 120, 24, ST77XX_BLACK);
 
     _tft.setTextSize(2);
     _tft.setTextColor(ST77XX_WHITE);
     _tft.setCursor(8, 34);
-    _tft.printf("VOL %3d", s.volume);
+    _tft.printf("VOL %3d", volume);
+}
 
+void DisplayService::drawBtState(bool connected, bool playing) {
+    // Czyścimy tylko prawą część drugiego wiersza.
+    _tft.fillRect(140, 32, _tft.width() - 140, 24, ST77XX_BLACK);
+
+    _tft.setTextSize(2);
     _tft.setCursor(145, 34);
-    if (s.playback == PlaybackState::Playing) {
-        _tft.setTextColor(ST77XX_GREEN);
-        _tft.print("PLAY");
+
+    if (connected) {
+        if (playing) {
+            _tft.setTextColor(ST77XX_GREEN);
+            _tft.print("BT PLAY");
+        } else {
+            _tft.setTextColor(ST77XX_CYAN);
+            _tft.print("BT");
+        }
     } else {
         _tft.setTextColor(ST77XX_YELLOW);
         _tft.print("STOP");
     }
+}
+
+void DisplayService::drawNetworkLine(
+    bool wifiConnected,
+    const String& ip,
+    bool apMode,
+    const String& apSsid
+) {
+    // Dolny wiersz czyścimy osobno.
+    _tft.fillRect(0, 58, _tft.width(), 18, ST77XX_BLACK);
 
     _tft.setTextSize(1);
     _tft.setTextColor(ST77XX_CYAN);
     _tft.setCursor(8, 62);
 
-    if (s.wifiConnected) {
-        _tft.print(s.ip);
-    } else if (s.apMode) {
+    if (wifiConnected) {
+        _tft.print(ip);
+    } else if (apMode) {
         _tft.print("AP: ");
-        _tft.print(s.apSsid);
+        _tft.print(apSsid);
     } else {
         _tft.print("WiFi: connecting...");
     }
+}
+
+void DisplayService::updateDynamicFields(bool force) {
+    const DeviceState s = StateStore::instance().snapshot();
+
+    if (force || s.volume != _lastVolume) {
+        drawVolume(s.volume);
+        _lastVolume = s.volume;
+    }
+
+    if (force ||
+        s.bluetoothConnected != _lastBtConnected ||
+        s.bluetoothPlaying != _lastBtPlaying) {
+
+        drawBtState(s.bluetoothConnected, s.bluetoothPlaying);
+
+        _lastBtConnected = s.bluetoothConnected;
+        _lastBtPlaying = s.bluetoothPlaying;
+    }
+
+    if (force ||
+        s.wifiConnected != _lastWifiConnected ||
+        s.ip != _lastIp ||
+        s.apMode != _lastApMode ||
+        s.apSsid != _lastApSsid) {
+
+        drawNetworkLine(
+            s.wifiConnected,
+            s.ip,
+            s.apMode,
+            s.apSsid
+        );
+
+        _lastWifiConnected = s.wifiConnected;
+        _lastIp = s.ip;
+        _lastApMode = s.apMode;
+        _lastApSsid = s.apSsid;
+    }
+}
+
+void DisplayService::loop() {
+    if (!_layoutDrawn) {
+        drawStaticLayout();
+        updateDynamicFields(true);
+        return;
+    }
+
+    // Bardzo lekki polling. Bez pełnego redraw i bez fillScreen().
+    updateDynamicFields(false);
+}
+
+void DisplayService::redraw() {
+    // Zachowujemy API dla reszty projektu, ale nie czyścimy całego TFT.
+    if (!_layoutDrawn) {
+        drawStaticLayout();
+    }
+
+    updateDynamicFields(true);
 }
