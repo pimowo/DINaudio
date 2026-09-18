@@ -1,5 +1,4 @@
 #include "WebService.h"
-#include <Update.h>
 #include "AppConfig.h"
 #include "BuildInfo.h"
 #include "../config/ConfigManager.h"
@@ -80,14 +79,6 @@ void WebService::routes() {
     _server.on("/volume", HTTP_POST, [this]() { handleVolume(); });
     _server.on("/reboot", HTTP_POST, [this]() { handleReboot(); });
 
-    _server.on("/update", HTTP_GET, [this]() { handleOtaPage(); });
-    _server.on(
-        "/update",
-        HTTP_POST,
-        [this]() { handleOtaDone(); },
-        [this]() { handleOtaUpload(); }
-    );
-
     _server.onNotFound([this]() {
         _server.send(404, "text/plain", "Not found");
     });
@@ -155,7 +146,6 @@ void WebService::handleRoot() {
     h += "</div>";
 
     h += "<div class='card'><h3>Firmware</h3>";
-    h += "<a href='/update'>Aktualizacja OTA</a>";
     h += "<form method='post' action='/reboot' style='display:inline'><button class='warn'>Restart</button></form>";
     h += "</div>";
 
@@ -285,89 +275,6 @@ void WebService::handleReboot() {
         "Restarting..."
     );
     delay(200);
-    ESP.restart();
-}
-
-void WebService::handleOtaPage() {
-    String h = htmlHeader("DINaudio OTA");
-    h += "<h1>Aktualizacja firmware</h1><div class='card'>";
-    h += "<p>Aktualny firmware: <b>" +
-         String(AppConfig::FW_VERSION) + "</b></p>";
-    h += "<form method='POST' action='/update' enctype='multipart/form-data'>";
-    h += "<input type='file' name='firmware' accept='.bin' required>";
-    h += "<button>Wgraj firmware</button></form>";
-    h += "</div><a href='/'>Wróć</a></body></html>";
-
-    _server.send(
-        200,
-        "text/html; charset=utf-8",
-        h
-    );
-}
-
-void WebService::handleOtaUpload() {
-    HTTPUpload& upload = _server.upload();
-
-    if (upload.status == UPLOAD_FILE_START) {
-        Logger::info(
-            "OTA",
-            "Start: " + upload.filename
-        );
-
-        auto s = StateStore::instance().snapshot();
-        s.otaInProgress = true;
-        StateStore::instance().update(s);
-
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
-            Update.printError(Serial);
-        }
-    } else if (upload.status == UPLOAD_FILE_WRITE) {
-        if (Update.write(
-                upload.buf,
-                upload.currentSize
-            ) != upload.currentSize) {
-            Update.printError(Serial);
-        }
-    } else if (upload.status == UPLOAD_FILE_END) {
-        if (Update.end(true)) {
-            Logger::info(
-                "OTA",
-                "Success, bytes=" +
-                    String(upload.totalSize)
-            );
-        } else {
-            Update.printError(Serial);
-        }
-    } else if (upload.status == UPLOAD_FILE_ABORTED) {
-        Update.abort();
-    }
-}
-
-void WebService::handleOtaDone() {
-    const bool ok = !Update.hasError();
-
-    auto s = StateStore::instance().snapshot();
-    s.otaInProgress = false;
-    StateStore::instance().update(s);
-
-    if (!ok) {
-        _server.send(
-            500,
-            "text/html; charset=utf-8",
-            htmlHeader("OTA error") +
-            "<h2>Aktualizacja nieudana</h2><a href='/update'>Wróć</a></body></html>"
-        );
-        return;
-    }
-
-    _server.send(
-        200,
-        "text/html; charset=utf-8",
-        htmlHeader("OTA OK") +
-        "<h2>Firmware zapisany poprawnie</h2><p>Restart...</p></body></html>"
-    );
-
-    delay(500);
     ESP.restart();
 }
 

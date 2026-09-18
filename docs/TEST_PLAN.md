@@ -1,5 +1,17 @@
 # TEST PLAN
 
+## Zmiana na układ bez OTA — do weryfikacji sprzętowej
+
+DINaudio nie obsługuje OTA; aktualizacje odbywają się przez USB/serial.
+Wcześniejsze zaliczenia OTA poniżej są historyczne.
+
+- [ ] pierwsze wgranie przewodowe bootloadera, nowej tabeli i aplikacji
+- [ ] pojedynczy slot factory 0x3E0000 oraz zachowany coredump
+- [ ] zachowanie konfiguracji NVS po standardowym uploadzie bez erase_flash
+- [ ] WWW, Wi-Fi, mDNS i ekran działają
+- [ ] Bluetooth A2DP/AVRCP, metadata, głośność i reconnect grace działają
+- [ ] brak formularza OTA; GET/POST /update zwracają 404
+
 ## M1 — zaliczone
 
 - [x] boot ESP32

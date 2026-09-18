@@ -1,55 +1,41 @@
-# DINaudio — finalny układ partycji 4 MB
+# DINaudio — układ partycji 4 MB bez OTA
 
-Cel: wykonać jeden planowany flash kablowy i później pozostać przy OTA.
+DINaudio nie obsługuje OTA. Firmware aktualizuje się wyłącznie przez USB/serial.
+Urządzenie wykorzystuje jeden duży slot aplikacji; zmiana tabeli partycji wymaga
+pierwszego wgrania przewodowego całego zestawu obrazów PlatformIO.
 
 ## Układ
 
-- NVS: 20 KiB
-- OTA data: 8 KiB
-- app0: 0x1F0000 = 2 031 616 B
-- app1: 0x1F0000 = 2 031 616 B
-- coredump: 64 KiB
+```csv
+# Name, Type, SubType, Offset, Size, Flags
+nvs, data, nvs, 0x9000, 0x5000,
+app, app, factory, 0x10000, 0x3E0000,
+coredump, data, coredump, 0x3F0000, 0x10000,
+```
 
-Granice:
-- app0: 0x010000 .. 0x1FFFFF
-- app1: 0x200000 .. 0x3EFFFF
-- coredump: 0x3F0000 .. 0x3FFFFF
+- NVS: 20 KiB, dotychczasowy offset i rozmiar zachowane.
+- Aplikacja: 4 063 232 B, zakres 0x10000 .. 0x3EFFFF.
+- Coredump: 64 KiB, zakres 0x3F0000 .. 0x3FFFFF.
+- Brak otadata i partycji ota_0/ota_1. Subtype factory jest domyślną aplikacją bootloadera.
+- Obszar 0xE000 .. 0xFFFF pozostaje poza partycjami danych.
+- Brak filesystemu; aktualna konfiguracja pozostaje w NVS/Preferences.
 
-## Dlaczego bez filesystemu
+## Pierwsze wgranie i kolejne aktualizacje
 
-Przy 4 MB flash priorytetem jest zachowanie dwóch możliwie największych
-slotów OTA. Osobny LittleFS/SPIFFS zabrałby miejsce potrzebne przyszłemu
-firmware z Bluetooth i radiem.
+1. Podłącz ESP32 przez USB i ustal port COM.
+2. Zamknij monitor serial, który może zajmować port.
+3. Wykonaj build: `pio run -e dinaudio_m1`.
+4. Po SUCCESS wykonaj `pio run -e dinaudio_m1 -t upload --upload-port COMx`,
+   zastępując COMx rzeczywistym portem. Nie wgrywaj wyłącznie firmware.bin:
+   pierwsze wgranie musi zapisać także bootloader i partitions.bin.
+5. Standardowy upload PlatformIO zapisuje obrazy przy właściwych offsetach.
+   Nie uruchamiaj erase/erase_flash: pełne kasowanie usuwa konfigurację NVS.
+   Układ zachowuje NVS, a standardowy upload nie zapisuje zakresu 0x9000 .. 0xDFFF.
+6. Jeśli automatyczne wejście w bootloader nie działa, użyj przycisków BOOT/EN
+   podczas łączenia narzędzia upload.
+7. Sprawdź konfigurację Wi-Fi, WWW, mDNS, TFT, Bluetooth A2DP/AVRCP,
+   metadata, głośność i reconnect grace period.
+8. Potwierdź brak przycisku OTA i odpowiedź 404 dla GET/POST /update.
 
-Konfigurację i playlistę projektujemy później oszczędnie. Jeśli rozmiar
-playlisty wymusi trwały filesystem, będzie to wymagało świadomego kompromisu
-albo sprzętu z większym flash — nie zmieniamy partycji pochopnie.
-
-## Ważna granica
-
-Każdy obraz firmware przeznaczony do OTA musi mieć mniej niż 2 031 616 B.
-
-Zalecenie projektowe:
-- ostrzeżenie przy ~1.90 MB,
-- twardy stop przed limitem slotu,
-- każdą dużą bibliotekę oceniać pod kątem Flash.
-
-## Procedura
-
-1. Skopiuj `platformio.ini` i `partitions.csv` do katalogu głównego DINaudio.
-2. Wykonaj BUILD.
-3. Jeśli build jest SUCCESS i program mieści się w app0/app1:
-   wykonaj jednorazowo `Upload` po USB.
-4. Ten upload zapisze także nową tablicę partycji.
-5. Po poprawnym uruchomieniu sprawdź:
-   - TFT,
-   - Wi-Fi,
-   - WWW,
-   - Bluetooth,
-   - audio.
-6. Następną aktualizację wykonujemy już przez WWW OTA.
-
-## Uwaga
-
-Nie używaj już wcześniejszego patcha z partycjami `1900K`.
-Ten plik jest docelowym układem dla obecnego ESP32 4 MB.
+Kolejne aktualizacje również wymagają USB/serial. Nie ma aktualizacji przez WWW
+ani rollbacku OTA. Nie wykonano jeszcze sprzętowego testu nowego układu.

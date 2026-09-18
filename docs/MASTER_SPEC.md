@@ -3,6 +3,15 @@
 Status: baza po zakończeniu M2.2 i wdrożeniu fundamentu konfiguracji runtime
 Aktualna wersja firmware: 0.4.0
 
+## Aktualizacje i partycje
+
+DINaudio nie obsługuje OTA. Firmware aktualizuje się przez USB/serial.
+Jeden slot aplikacji factory zajmuje 0x10000 .. 0x3EFFFF i ma 4 063 232 B.
+NVS i coredump zachowują dotychczasowe offsety i rozmiary; brak otadata.
+Zmiana tabeli wymaga pierwszego wgrania przewodowego bootloadera, tabeli i aplikacji.
+Procedura: [układ partycji](../docs_FINAL_PARTITIONS.md).
+Wzmianki o OTA w zakończonych milestone'ach opisują wcześniejsze wersje.
+
 Wersjonowanie firmware stosuje Semantic Versioning MAJOR.MINOR.PATCH: 0.x.y oznacza
 okres przed stabilnym 1.0.0, PATCH oznacza poprawki błędów, MINOR nowe funkcje, a
 MAJOR niekompatybilne zmiany architektury lub API. M1, M2.1 i M2.2 są historycznymi

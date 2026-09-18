@@ -48,7 +48,6 @@ struct DeviceState {
     bool timeValid = false;
     String clockText;
 
-    bool otaInProgress = false;
     String lastMessage = "BOOT";
 };
 

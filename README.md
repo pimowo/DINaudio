@@ -2,8 +2,16 @@
 
 Autonomiczny moduł audio na klasycznym ESP32.
 
-Aktualny stan: **M2.2 zakończone i zweryfikowane sprzętowo**.
-Aktualna wersja firmware: **0.2.0**.
+Aktualny stan: **0.4.0 z lokalną zmianą na układ bez OTA; test przewodowego wgrania oczekuje na wykonanie**.
+Aktualna wersja firmware: **0.4.0**.
+
+## Aktualizacje firmware
+
+DINaudio nie obsługuje OTA. Aktualizacje wykonuje się przez USB/serial.
+Jeden slot aplikacji factory ma rozmiar 0x3E0000 = 4 063 232 B.
+Zmiana tabeli partycji wymaga pierwszego wgrania przewodowego także bootloadera
+i tabeli partycji. NVS i coredump zachowują dotychczasowe offsety i rozmiary.
+Procedura: [układ partycji i upload](docs_FINAL_PARTITIONS.md).
 
 ## Wersjonowanie
 
@@ -55,7 +63,7 @@ DINaudio/
 - AP setup
 - WWW
 - mDNS
-- OTA przez WWW
+- OTA przez WWW (historycznie; obecnie usunięte)
 
 ## Następny etap
 **M2 — Bluetooth A2DP + AVRCP**

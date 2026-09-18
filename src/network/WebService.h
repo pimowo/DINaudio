@@ -25,7 +25,4 @@ private:
     void handleStop();
     void handleVolume();
     void handleReboot();
-    void handleOtaPage();
-    void handleOtaUpload();
-    void handleOtaDone();
 };

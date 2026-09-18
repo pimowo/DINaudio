@@ -1,5 +1,12 @@
 # ROADMAP
 
+## Aktualizacje — decyzja projektowa
+
+DINaudio nie obsługuje OTA ani rollbacku OTA. Firmware aktualizuje się przez USB/serial.
+Jeden duży slot aplikacji factory: 0x3E0000 = 4 063 232 B.
+Zmiana tabeli partycji wymaga pierwszego wgrania przewodowego.
+Wzmianki o OTA w zakończonych milestone'ach są historyczne.
+
 ## 0.3.0 — display i NTP ✅
 
 ST7789 284×76 oraz zegar NTP Europe/Warsaw zostały przetestowane sprzętowo.
@@ -68,4 +75,4 @@ schemaVersion 1 oraz sprzętowo przetestowana migracja istniejącej konfiguracji
 - backup/restore
 - safe mode
 - diagnostics
-- OTA rollback
+- przewodowe recovery firmware przez USB/serial

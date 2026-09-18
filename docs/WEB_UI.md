@@ -1,21 +1,22 @@
 # WEB UI
 
-## M1
-Prosty interfejs:
-- status,
-- audio test,
-- Wi-Fi,
-- restart,
-- OTA.
+## Aktualny interfejs
+
+- status firmware i Bluetooth/AVRCP,
+- sterowanie odtwarzaniem i głośnością,
+- konfiguracja Wi-Fi,
+- restart.
+
+DINaudio nie obsługuje OTA. Firmware aktualizuje się przez USB/serial.
+WWW konfiguracyjne pozostaje dostępne; brak formularza aktualizacji firmware.
 
 ## Docelowo
-Zakładki:
+
 - Status / Now Playing
 - Radio
 - Bluetooth
 - MQTT / HA
 - Audio
 - Network / System
-- OTA
 - Diagnostics / Service
 - Backup / Restore / Factory reset
