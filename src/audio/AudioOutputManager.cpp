@@ -87,3 +87,16 @@ bool AudioOutputManager::detach(AudioOutputOwner requested) {
     _attached = false;
     return true;
 }
+
+bool AudioOutputManager::configureStereo16(AudioOutputOwner requested, uint32_t sampleRate) {
+    if (!isOwnedBy(requested) || !_attached || _fault || !_output.ready() ||
+        sampleRate < 8000 || sampleRate > 48000) return false;
+    if (!_output.stream().configureTX(sampleRate, I2S_DATA_BIT_WIDTH_16BIT,
+            I2S_SLOT_MODE_STEREO, I2S_STD_SLOT_BOTH)) {
+        _fault = true;
+        Logger::error("AUDIO", "PCM configuration failed; output blocked");
+        return false;
+    }
+    _output.stream().setTimeout(100);
+    return true;
+}

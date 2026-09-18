@@ -1,5 +1,16 @@
 # TEST PLAN
 
+## Minimal MP3 RadioService - pending hardware validation
+
+- [x] HTTP MP3, Helix MP3, start/stop/loop and build/link
+- [x] PCM output through AudioOutputManager
+- [x] exclusive I2S ownership; no concurrent BT and Radio PCM writes
+- [ ] playback of one test station through PCM5102A
+- [ ] runtime BT -> Radio -> BT
+- [ ] new partition-table test
+- [ ] ICY metadata, stream reconnect and station list remain out of scope
+- [ ] AAC remains out of scope
+
 ## Zmiana na układ bez OTA — do weryfikacji sprzętowej
 
 DINaudio nie obsługuje OTA; aktualizacje odbywają się przez USB/serial.

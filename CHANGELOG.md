@@ -1,6 +1,15 @@
 # Changelog`r`n`r`n## 0.4.0`r`n- Bluetooth ownership przeniesiony do App; reconnect grace period wynosi 10 s.`r`n- BT ownership/reconnect, ekran BT RECONNECT oraz powrót telefonu w grace period zostały przetestowane sprzętowo.`r`n- Config schema 3; migracja 1 → 2 → 3 zachowuje istniejącą konfigurację i ustawia reconnectDelayMs = 10000.
 
 ## 0.3.0
+
+## Minimal MP3 RadioService checkpoint
+
+- Minimal RadioService is code-complete for HTTP MP3, Helix MP3, start/stop/loop and PCM through AudioOutputManager.
+- Helix MP3 is confirmed at build/link level; AAC is not linked.
+- Bluetooth and Radio have exclusive I2S ownership and never write PCM5102A concurrently.
+- Hardware audio test and new partition-table test are pending.
+- Runtime BT -> Radio -> BT still requires hardware testing.
+- ICY metadata, stream reconnect, station list and AAC are not implemented.
 - Przebudowany ekran ST7789 284×76 w układzie inspirowanym yoRadio DSP_ST7789_76.
 - Dodano TimeService z NTP i strefą Europe/Warsaw (CET/CEST).
 - Ekran i zegar 0.3.0 zostały przetestowane sprzętowo.

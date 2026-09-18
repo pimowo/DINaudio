@@ -9,6 +9,7 @@
 #include "../ui/DisplayService.h"
 #include "../audio/AudioOutputManager.h"
 #include "../bluetooth/BluetoothService.h"
+#include "../radio/RadioService.h"
 #include "../network/WiFiService.h"
 #include "../network/WebService.h"
 #include "../time/TimeService.h"
@@ -25,6 +26,11 @@ private:
 
     AudioOutputManager _audioOutput;
     BluetoothService _bluetooth;
+    RadioService _radio;
+    bool _radioSession = false;
+    char _radioCommand[24] = {0};
+    uint8_t _radioCommandLength = 0;
+    bool _radioCommandOverflow = false;
 
     WiFiService _wifi;
     WebService _web;
@@ -39,6 +45,9 @@ private:
     AudioSource _sourceBeforeBluetooth = AudioSource::Stop;
 
     void processCommands();
+    bool startRadio(const char* url);
+    void stopRadio();
+    void processRadioTestCommands();
     void updateBluetoothOwnership();
     void enterBluetoothReconnectGrace();
     void finishBluetoothReconnectGrace();

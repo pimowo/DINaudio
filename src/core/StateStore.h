@@ -9,7 +9,8 @@ enum class PlaybackState : uint8_t {
 enum class AudioSource : uint8_t {
     Stop,
     Test,
-    Bluetooth
+    Bluetooth,
+    Radio
 };
 
 enum class BluetoothOwnershipState : uint8_t {

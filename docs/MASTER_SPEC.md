@@ -19,6 +19,17 @@ nazwami milestone'ów.
 
 ## Cel
 
+## Minimal MP3 RadioService checkpoint
+
+Minimal RadioService is code-complete for measurement and hardware testing.
+It uses direct Helix MP3, HTTP MP3 and the existing AudioOutputManager.
+Bluetooth and Radio never write I2S/PCM5102A concurrently; switching uses BT
+suspend/resume and the shared ownership manager.
+
+Helix MP3 build/link is confirmed and AAC is not linked. Hardware audio,
+the new partition table and runtime BT -> Radio -> BT remain pending.
+ICY metadata, stream reconnect, station list and AAC are not implemented.
+
 DINaudio to autonomiczny moduł audio na klasycznym ESP32:
 - radio internetowe,
 - Bluetooth A2DP,

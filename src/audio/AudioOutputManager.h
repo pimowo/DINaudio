@@ -31,6 +31,9 @@ public:
     Print* attach(AudioOutputOwner owner);
     bool detach(AudioOutputOwner owner);
 
+    // App task only, between PCM writes by the attached lease holder.
+    bool configureStereo16(AudioOutputOwner owner, uint32_t sampleRate);
+
 private:
     AudioOutput _output;
     AudioOutputOwner _owner = AudioOutputOwner::None;

@@ -1,5 +1,18 @@
 # ROADMAP
 
+## Minimal MP3 RadioService checkpoint
+
+- [x] code RadioService with HTTP MP3 and Helix MP3
+- [x] start, stop, loop and output through AudioOutputManager
+- [x] controlled BT suspend/resume with exclusive I2S ownership
+- [x] Helix MP3 retained in ELF; AAC is not linked
+- [ ] hardware audio test
+- [ ] new partition-table test
+- [ ] runtime BT -> Radio -> BT
+- [ ] ICY metadata, stream reconnect and station list
+
+This checkpoint does not include full radio implementation or firmware 0.5.0.
+
 ## Aktualizacje — decyzja projektowa
 
 DINaudio nie obsługuje OTA ani rollbacku OTA. Firmware aktualizuje się przez USB/serial.
