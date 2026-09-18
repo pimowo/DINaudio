@@ -57,6 +57,17 @@ schemaVersion 1 oraz sprzętowo przetestowana migracja istniejącej konfiguracji
 - codecs
 - Next/Prev
 
+## 0.4.0 — audio output ownership checkpoint
+
+- [x] wspólny `AudioOutputManager` i wyłączny ownership fizycznego I2S
+- [x] lifecycle Bluetooth `suspend/resume` przygotowany pod przyszłe źródła
+- [x] czasowe zatrzymanie A2DP przez `end(false)`; `end(true)` nieużywane
+- [x] reconnect grace 10 s pozostaje bez zmian
+- [ ] sprzętowy test runtime suspend/resume
+- [ ] sprzętowy test nowej tabeli partycji
+
+To przygotowanie kodowe nie jest implementacją radia ani wersji 0.5.0.
+
 ## M4 — SOURCE MANAGER
 - RADIO ↔ BT
 - PLAY_MEDIA

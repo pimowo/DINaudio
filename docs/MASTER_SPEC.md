@@ -96,3 +96,14 @@ zostały przetestowane sprzętowo.
 ## 0.4.0 — Bluetooth ownership i reconnect grace`r`n`r`nApp zarządza Bluetooth ownership. Po utracie połączenia działa 10-sekundowy grace period z próbami reconnectu do ostatniego urządzenia; ekran pokazuje BT RECONNECT, a metadata jest czyszczona dopiero po wygaśnięciu okna. Config schema 3 i migracja 1 → 2 → 3 zachowują istniejącą konfigurację. Zakres został przetestowany sprzętowo.`r`n`r`n## Następny milestone
 
 M3 — Radio.
+
+## Audio output ownership checkpoint — 0.4.0
+
+`AudioOutputManager` jest jedynym właścicielem fizycznego I2S/PCM5102A.
+BluetoothService ma przygotowany lifecycle `suspend/resume`; czasowe zatrzymanie
+A2DP używa `end(false)`, a `end(true)` nie jest używane. Reconnect grace 10 s
+pozostaje osobną ścieżką bez teardown A2DP.
+
+Jest to kodowy fundament pod przyszły RadioService, nie implementacja radia ani
+wersji 0.5.0. Runtime suspend/resume oraz test sprzętowy nowej tabeli partycji
+pozostają jeszcze niewykonane.

@@ -36,3 +36,12 @@ Wersjonowanie firmware stosuje Semantic Versioning MAJOR.MINOR.PATCH.
 - WWW
 - mDNS
 - OTA
+
+## 0.4.0 — shared audio output ownership checkpoint
+
+- Dodano wspólny `AudioOutputManager` będący wyłącznym właścicielem fizycznego I2S/PCM5102A.
+- Przygotowano lifecycle Bluetooth `suspend/resume` pod przyszłe przełączanie źródeł.
+- Czasowe zatrzymanie A2DP używa `end(false)`; `end(true)` nie jest używane.
+- Reconnect grace 10 s pozostaje bez zmian i nie wykonuje teardown A2DP.
+- Fundament pod przyszły RadioService jest gotowy kodowo; radio ani 0.5.0 nie zostały zaimplementowane.
+- Runtime suspend/resume oraz test sprzętowy nowej tabeli partycji pozostają pending.

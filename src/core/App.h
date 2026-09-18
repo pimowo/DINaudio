@@ -7,7 +7,7 @@
 #include "../config/ConfigManager.h"
 #include "../hal/EncoderInput.h"
 #include "../ui/DisplayService.h"
-#include "../audio/AudioOutput.h"
+#include "../audio/AudioOutputManager.h"
 #include "../bluetooth/BluetoothService.h"
 #include "../network/WiFiService.h"
 #include "../network/WebService.h"
@@ -23,7 +23,7 @@ private:
     EncoderInput _encoder;
     DisplayService _display;
 
-    AudioOutput _audioOutput;
+    AudioOutputManager _audioOutput;
     BluetoothService _bluetooth;
 
     WiFiService _wifi;

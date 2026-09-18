@@ -59,3 +59,12 @@ grubszej skali urządzenia źródłowego. Jest to zaakceptowane zachowanie.
 - [ ] pairing management
 - [ ] heap/min heap
 - [ ] reconnect stress test
+
+## Audio output ownership — pending hardware validation
+
+- [x] `AudioOutputManager` jako wyłączny właściciel fizycznego I2S/PCM5102A
+- [x] Bluetooth lifecycle `suspend/resume` przygotowany kodowo
+- [x] czasowe zatrzymanie A2DP przez `end(false)`; `end(true)` nie jest używane
+- [x] reconnect grace 10 s pozostaje bez zmian
+- [ ] sprzętowy test runtime BT suspend/resume i ponownego przejęcia I2S
+- [ ] sprzętowy test nowej tabeli partycji

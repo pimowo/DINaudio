@@ -2,12 +2,16 @@
 
 #include <Arduino.h>
 #include <BluetoothA2DPSink.h>
+#include "BluetoothLifecycle.h"
 
-#include "../audio/AudioOutput.h"
+#include "../audio/AudioOutputManager.h"
 
 class BluetoothService {
 public:
-    bool begin(AudioOutput& output, const String& deviceName, int volume);
+    // Shared section keeps both prepared switch APIs in the actual size report
+    // even though normal App operation does not call them yet.
+    bool begin(AudioOutputManager& output, const String& deviceName, int volume)
+        __attribute__((section(".text.bt_lifecycle")));
     void loop();
     void setVolume(int volume0to100);
 
@@ -19,10 +23,47 @@ public:
 
     bool reconnect();
 
+    // App task only; never called automatically by disconnect/grace handling.
+    // Retain the currently unused APIs so build sizes include their real cost.
+    bool suspendForSourceSwitch() __attribute__((section(".text.bt_lifecycle")));
+    bool resumeAfterSourceSwitch() __attribute__((section(".text.bt_lifecycle")));
+    // App consumes this once, also when suspend+resume happen in one loop.
+    bool consumeSourceSwitchEvent() {
+        if (!onAppTask()) return false;
+        const bool pending = _sourceSwitchPending;
+        _sourceSwitchPending = false;
+        return pending;
+    }
+    bool sourceSwitchSuspended() const {
+        return _lifecycle != Lifecycle::Stopped &&
+            _lifecycle != Lifecycle::Running;
+    }
+
     bool started() const { return _started; }
 
 private:
-    BluetoothA2DPSink _sink;
+    enum class Lifecycle : uint8_t {
+        Stopped, Running, Suspending, Suspended, Resuming, Fault
+    };
+    BluetoothLifecycleSink _sink;
+    BluetoothOutputGate _outputGate;
+    Lifecycle _lifecycle = Lifecycle::Stopped;
+    bool _sourceSwitchPending = false;
+    TaskHandle_t _appTask = nullptr;
+    std::atomic<bool> _acceptCallbacks{false};
+    int _volume = 25;
+    esp_bd_addr_t _lastPeerAddress = {0};
+    bool _hasLastPeer = false;
+    char _lastPeerName[64] = {0};
+    portMUX_TYPE _peerMux = portMUX_INITIALIZER_UNLOCKED;
+    bool configureAndStart(bool resume);
+    bool finishSuspend();
+    bool onAppTask() const;
+    void publishStoppedTransport();
+    static void onConnectionState(esp_a2d_connection_state_t state, void* context);
+    // The lease stays pinned for the entire sink lifetime, including idle and
+    // reconnect grace. AVRCP stop() does not stop the asynchronous producer.
+    AudioOutputManager* _outputManager = nullptr;
 
     bool _started = false;
     String _deviceName;

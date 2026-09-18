@@ -94,7 +94,8 @@ bool App::begin() {
         _display.begin();
     }
 
-    if (_audioOutput.begin()) {
+    if (_audioOutput.begin() &&
+        _audioOutput.acquire(AudioOutputOwner::Bluetooth)) {
         const String btName =
             makeBluetoothName();
 
@@ -107,6 +108,7 @@ bool App::begin() {
                 "BT",
                 "Bluetooth unavailable"
             );
+            _audioOutput.release(AudioOutputOwner::Bluetooth);
         }
     } else {
         Logger::warn(
@@ -192,6 +194,21 @@ void App::finishBluetoothReconnectGrace() {
 }
 
 void App::updateBluetoothOwnership() {
+    // An intentional source switch must not start transport reconnect grace.
+    if (_bluetooth.consumeSourceSwitchEvent() ||
+        _bluetooth.sourceSwitchSuspended()) {
+        _btWasConnected = false;
+        _btReconnectGraceActive = false;
+        _btReconnectGraceUntil = 0;
+        auto s = StateStore::instance().snapshot();
+        if (s.bluetoothReconnectGrace ||
+            s.bluetoothOwnership != BluetoothOwnershipState::Disconnected) {
+            s.bluetoothReconnectGrace = false;
+            s.bluetoothOwnership = BluetoothOwnershipState::Disconnected;
+            StateStore::instance().update(s);
+        }
+        if (_bluetooth.sourceSwitchSuspended()) return;
+    }
     auto s =
         StateStore::instance().snapshot();
 

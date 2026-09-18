@@ -29,3 +29,15 @@ bool AudioOutput::begin() {
     );
     return true;
 }
+
+bool AudioOutput::end() {
+    if (!_ready) return true;
+    // Only after the manager has detached a quiescent producer. ESP_I2S end
+    // disables/deletes channels and releases DMA resources and pin ownership.
+    if (!_i2s.end()) {
+        Logger::error("AUDIO", "I2S teardown failed");
+        return false;
+    }
+    _ready = false;
+    return true;
+}
