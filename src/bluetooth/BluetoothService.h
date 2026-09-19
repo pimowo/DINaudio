@@ -40,6 +40,8 @@ public:
     }
 
     bool started() const { return _started; }
+    uint32_t metadataRevision() const { return _metadataRevision; }
+    uint32_t artistRevision() const { return _artistRevision; }
 
 private:
     enum class Lifecycle : uint8_t {
@@ -110,6 +112,9 @@ private:
     volatile int _remoteVolume127 = 0;
 
     volatile bool _metadataPending = false;
+    volatile bool _artistPending = false;
+    uint32_t _metadataRevision = 0;
+    uint32_t _artistRevision = 0;
     volatile bool _peerNamePending = false;
 
     char _pendingTitle[128] = {0};

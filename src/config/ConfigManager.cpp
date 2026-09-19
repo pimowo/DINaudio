@@ -93,6 +93,11 @@ bool ConfigManager::migrateIfNeeded(uint16_t storedVersion) {
         version = 5;
     }
 
+    if (version == 5) {
+        if (!migrateV5ToV6()) return false;
+        version = 6;
+    }
+
     return version == ConfigSchema::CURRENT_VERSION;
 }
 
@@ -202,6 +207,12 @@ bool ConfigManager::migrateV4ToV5() {
     // Keep cfg_ver=4 until every schema-5 field has been written and verified.
     // Missing fields load from schema-5 defaults; invalid stored data must not
     // be replaced by the runtime safe fallback during migration.
+    if (!load(false)) return false;
+    return writeSnapshot(_config, 5);
+}
+
+bool ConfigManager::migrateV5ToV6() {
+    // Keep cfg_ver=5 until the new field and full snapshot are verified.
     if (!load(false)) return false;
     return writeSnapshot(_config);
 }

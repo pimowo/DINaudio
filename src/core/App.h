@@ -45,6 +45,7 @@ private:
     bool _volumeDirty = false;
     UiMode _uiMode = UiMode::Home;
     uint32_t _overlayActivityMs = 0;
+    bool _btNavArtistPending = false;
 
     bool _btWasConnected = false;
     bool _btReconnectGraceActive = false;

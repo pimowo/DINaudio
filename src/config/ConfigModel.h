@@ -3,7 +3,7 @@
 #include <Arduino.h>
 
 namespace ConfigSchema {
-static constexpr uint16_t CURRENT_VERSION = 5;
+static constexpr uint16_t CURRENT_VERSION = 6;
 }
 
 enum class DefaultSource : uint8_t { Stop, Radio, Bluetooth };
@@ -83,6 +83,10 @@ struct EncoderConfig {
     bool accelerationEnabled = true;
 };
 
+struct UiConfig {
+    uint32_t navigationTimeoutMs = 5000;
+};
+
 struct MqttConfig {
     String host;
     uint16_t port = 1883;
@@ -127,6 +131,7 @@ struct RuntimeConfig {
     RadioConfig radio;
     DisplayConfig display;
     EncoderConfig encoder;
+    UiConfig ui;
     MqttConfig mqtt;
     YoRadioConfig yoRadio;
     NetworkConfig network;

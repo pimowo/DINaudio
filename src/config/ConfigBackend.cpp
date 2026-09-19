@@ -61,6 +61,7 @@ void ConfigManager::loadBackend() {
     _config.encoder.direction = static_cast<EncoderDirection>(_prefs.getUChar("e_dir", static_cast<uint8_t>(defaults.encoder.direction)));
     _config.encoder.volumeStep = _prefs.getInt("e_step", defaults.encoder.volumeStep);
     _config.encoder.accelerationEnabled = _prefs.getBool("e_accel", defaults.encoder.accelerationEnabled);
+    _config.ui.navigationTimeoutMs = _prefs.getUInt("ui_nav_ms", defaults.ui.navigationTimeoutMs);
     _config.mqtt.host = _prefs.getString("m_host", defaults.mqtt.host);
     _config.mqtt.port = _prefs.getUShort("m_port", defaults.mqtt.port);
     _config.mqtt.username = _prefs.getString("m_user", defaults.mqtt.username);
@@ -104,7 +105,8 @@ bool ConfigManager::validate(const RuntimeConfig& c) const {
         c.audio.maxOutputVolume < 0 || c.audio.maxOutputVolume > 100 ||
         c.playMedia.fixedVolume < 0 || c.playMedia.fixedVolume > 100 ||
         c.display.brightness < 0 || c.display.brightness > 100 ||
-        c.encoder.volumeStep < 1 || c.encoder.volumeStep > 10)
+        c.encoder.volumeStep < 1 || c.encoder.volumeStep > 10 ||
+        c.ui.navigationTimeoutMs < 1000 || c.ui.navigationTimeoutMs > 30000)
         return false;
 
     if (static_cast<uint8_t>(c.audio.defaultSource) >
@@ -183,7 +185,7 @@ bool ConfigManager::validate(const RuntimeConfig& c) const {
     return true;
 }
 
-bool ConfigManager::writeSnapshot(const RuntimeConfig& candidate) {
+bool ConfigManager::writeSnapshot(const RuntimeConfig& candidate, uint16_t version) {
 #define WRITE_SCALAR(key, kind, value) \
     do { \
         const auto expected = (value); \
@@ -238,6 +240,7 @@ bool ConfigManager::writeSnapshot(const RuntimeConfig& candidate) {
     WRITE_SCALAR("e_dir", UChar, static_cast<uint8_t>(candidate.encoder.direction));
     WRITE_SCALAR("e_step", Int, candidate.encoder.volumeStep);
     WRITE_SCALAR("e_accel", Bool, candidate.encoder.accelerationEnabled);
+    WRITE_SCALAR("ui_nav_ms", UInt, candidate.ui.navigationTimeoutMs);
     WRITE_STRING("m_host", candidate.mqtt.host);
     WRITE_SCALAR("m_port", UShort, candidate.mqtt.port);
     WRITE_STRING("m_user", candidate.mqtt.username);
@@ -263,8 +266,8 @@ bool ConfigManager::writeSnapshot(const RuntimeConfig& candidate) {
     WRITE_SCALAR("feat_ha", Bool, candidate.features.haDiscoveryEnabled);
 #undef WRITE_STRING
 #undef WRITE_SCALAR
-    return _prefs.putUShort("cfg_ver", ConfigSchema::CURRENT_VERSION) > 0 &&
-        _prefs.getUShort("cfg_ver", 0) == ConfigSchema::CURRENT_VERSION;
+    return _prefs.putUShort("cfg_ver", version) > 0 &&
+        _prefs.getUShort("cfg_ver", 0) == version;
 }
 
 bool ConfigManager::save(const RuntimeConfig& candidate) {

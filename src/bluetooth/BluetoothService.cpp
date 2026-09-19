@@ -199,6 +199,7 @@ void BluetoothService::copyMetadata(
             sizeof(_pendingArtist) - 1
         ] = '\0';
         _metadataPending = true;
+        _artistPending = true;
     }
 }
 
@@ -360,6 +361,7 @@ bool BluetoothService::finishSuspend() {
         return false;
     }
     _remoteVolumePending = _metadataPending = _peerNamePending = false;
+    _artistPending = false;
     portENTER_CRITICAL(&_peerMux);
     _a2dpConnected = false;
     _volumeNotifyReady = false;
@@ -597,13 +599,14 @@ bool BluetoothService::reconnect() {
 
 void BluetoothService::flushPendingEvents() {
     int raw;
-    bool volumePending, metadataPending, peerPending;
+    bool volumePending, metadataPending, artistPending, peerPending;
     char title[sizeof(_pendingTitle)];
     char artist[sizeof(_pendingArtist)];
     char peer[sizeof(_pendingPeerName)];
     portENTER_CRITICAL(&_peerMux);
     volumePending = _remoteVolumePending && _a2dpConnected && _initialVolumeSynced;
     metadataPending = _metadataPending;
+    artistPending = _artistPending;
     peerPending = _peerNamePending;
     raw = _remoteVolume127;
     if (metadataPending) {
@@ -612,6 +615,7 @@ void BluetoothService::flushPendingEvents() {
     }
     if (peerPending) memcpy(peer, _pendingPeerName, sizeof(peer));
     _remoteVolumePending = _metadataPending = _peerNamePending = false;
+    _artistPending = false;
     portEXIT_CRITICAL(&_peerMux);
 
     if (volumePending) {
@@ -629,6 +633,8 @@ void BluetoothService::flushPendingEvents() {
         s.bluetoothTitle = title;
         s.bluetoothArtist = artist;
         StateStore::instance().update(s);
+        ++_metadataRevision;
+        if (artistPending) ++_artistRevision;
     }
 
     if (peerPending) {

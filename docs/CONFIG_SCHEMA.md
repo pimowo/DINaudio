@@ -1,6 +1,6 @@
 # VoxOne runtime configuration schema
 
-Status: backend schema 5 is stored and validated by ConfigManager. WWW
+Status: backend schema 6 is stored and validated by ConfigManager. WWW
 configuration is available through WWW; most hardware wiring remains planned. Firmware remains 0.4.0.
 
 ## Configuration transaction
@@ -101,6 +101,7 @@ remain planned where not implemented.
 | encoder.direction | enum | REVERSED | NORMAL/REVERSED | encoder enabled | supported |
 | encoder.volume_step | int | 1 | positive | encoder enabled | logical step |
 | encoder.acceleration_enabled | bool | true | true/false | encoder enabled | none |
+| ui.navigation_timeout_ms | int (ms) | 5000 | 1000..30000 | always | BT NAV and future RadioList; restart required |
 | buttons.* | structured | none | GPIO/action/debounce | buttons enabled | planned bounded mapping |
 
 Each display has a fixed renderer; users configure type and pins, not arbitrary
@@ -161,13 +162,17 @@ last. The legacy namespace stays intact for rollback. Schema 4 -> 5 loads
 existing values and schema-5 defaults, validates the complete configuration,
 then writes and verifies every field. cfg_ver=5 is written last; an interrupted
 write leaves schema 4 for retry on the next boot.
+Schema 5 -> 6 loads existing values, supplies ui.navigation_timeout_ms=5000
+when absent, validates the full RuntimeConfig, writes and verifies the full
+snapshot, and writes cfg_ver=6 last. If interrupted, cfg_ver=5 remains
+and migration is retried on the next boot. The legacy namespace is untouched.
 
 ## Status
 
 CONFIRMED/CURRENT: existing config/schema history, AudioOutputManager, BT
 ownership, minimal RadioService, ST7789 and logical volume 0..100.
 
-STORED/VALIDATED: schema 5 fields and active-module GPIO collision checks.
+STORED/VALIDATED: schema 6 fields and active-module GPIO collision checks.
 RUNTIME WIRED: feature-gated BT, Radio, ST7789 and Encoder startup; legacy
 Wi-Fi/volume/BT reconnect fields; I2S and ST7789/encoder GPIO; encoder
 direction and volume step. Default source BT starts A2DP, while STOP leaves

@@ -21,6 +21,9 @@
 API VoxOne pozostaje wersjonowane jako `/api/v1/...`.
 VoxOne nie obsługuje OTA; GET/POST `/update` nie są zarejestrowane i zwracają 404.
 Firmware aktualizuje się przez USB/serial.
+Pole `ui.navigationTimeoutMs` (dokumentacyjnie `ui.navigation_timeout_ms`)
+ustawia po restarcie timeout BT NAV i przyszłej listy stacji: 1000–30000 ms,
+domyślnie 5000 ms. Ekran głośności nadal ma timeout 2500 ms.
 Formularz konfiguracji przesyła pełny `RuntimeConfig` jako
 `application/x-www-form-urlencoded`. Odpowiedź GET nie zawiera haseł Wi-Fi
 ani MQTT; puste pole hasła w POST zachowuje starą wartość. Walidacja błędnego

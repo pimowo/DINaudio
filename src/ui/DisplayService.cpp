@@ -520,6 +520,19 @@ void DisplayService::drawBtTrackNavScreen() {
     drawIcon(NAV_NEXT, leftX + 2 * (iconWidth + iconGap), kColorSonyBlue);
 }
 
+void DisplayService::drawBtNavArtist(const String& artist) {
+    const int y = _tft.height() - 11;
+    _tft.fillRect(0, y - 2, _tft.width(), 13, kColorBackground);
+    if (artist.isEmpty()) return;
+
+    const int maxWidth = _tft.width() - 8;
+    int fullWidth = 0;
+    for (const char* cursor = artist.c_str(); *cursor;)
+        fullWidth += glyphAdvance(PolishGlyphs::next(cursor), false, 1);
+    const int visibleWidth = fullWidth < maxWidth ? fullWidth : maxWidth;
+    drawUtf8Line(artist, (_tft.width() - visibleWidth) / 2, y, maxWidth,
+                 kColorSecondaryText, kColorBackground, false, 1);
+}
 void DisplayService::updatePlayerFields(bool force) {
     const DeviceState s =
         StateStore::instance().snapshot();
@@ -618,7 +631,7 @@ void DisplayService::updatePlayerFields(bool force) {
     _lastBtReconnectGrace = s.bluetoothReconnectGrace;
 }
 
-void DisplayService::loop(UiMode mode) {
+void DisplayService::loop(UiMode mode, bool btNavArtistPending) {
     if (_visualDisabled) return;
     // RadioList has no implementation; a caller cannot expose a blank screen.
     const UiMode visibleMode = mode == UiMode::RadioList ? UiMode::Home : mode;
@@ -631,6 +644,9 @@ void DisplayService::loop(UiMode mode) {
             _lastVolume = s.volume;
         } else if (visibleMode == UiMode::BtTrackNav) {
             drawBtTrackNavScreen();
+            drawBtNavArtist(btNavArtistPending ? String() : s.bluetoothArtist);
+            _lastBtNavArtist = s.bluetoothArtist;
+            _lastBtNavArtistPending = btNavArtistPending;
         } else {
             drawStaticLayout();
             updatePlayerFields(true);
@@ -647,7 +663,15 @@ void DisplayService::loop(UiMode mode) {
         }
         return;
     }
-    if (visibleMode == UiMode::BtTrackNav) return;
+    if (visibleMode == UiMode::BtTrackNav) {
+        if (btNavArtistPending != _lastBtNavArtistPending ||
+            s.bluetoothArtist != _lastBtNavArtist) {
+            drawBtNavArtist(btNavArtistPending ? String() : s.bluetoothArtist);
+            _lastBtNavArtist = s.bluetoothArtist;
+            _lastBtNavArtistPending = btNavArtistPending;
+        }
+        return;
+    }
     updatePlayerFields(false);
 }
 bool DisplayService::clearToBlack() {
@@ -661,6 +685,6 @@ bool DisplayService::clearToBlack() {
 void DisplayService::redraw() {
     if (_visualDisabled) return;
     _layoutDrawn = false;
-    loop(_renderedMode);
+    loop(_renderedMode, _lastBtNavArtistPending);
 }
 

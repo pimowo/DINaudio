@@ -153,6 +153,7 @@ bool parseCandidate(WebServer& server, RuntimeConfig& c, String& error) {
     READ_ENUM("encoder.direction", c.encoder.direction, 1, EncoderDirection);
     READ_NUM("encoder.volumeStep", c.encoder.volumeStep, 1, 10);
     READ_NUM("encoder.accelerationEnabled", c.encoder.accelerationEnabled, 0, 1);
+    READ_NUM("ui.navigationTimeoutMs", c.ui.navigationTimeoutMs, 1000, 30000);
     READ_TEXT("mqtt.host", c.mqtt.host, 128);
     READ_NUM("mqtt.port", c.mqtt.port, 1, 65535);
     READ_TEXT("mqtt.username", c.mqtt.username, 128);
@@ -283,6 +284,7 @@ void WebService::handleConfigGet() {
     PUT_N("encoder.direction", c.encoder.direction);
     PUT_N("encoder.volumeStep", c.encoder.volumeStep);
     PUT_N("encoder.accelerationEnabled", c.encoder.accelerationEnabled);
+    PUT_N("ui.navigationTimeoutMs", c.ui.navigationTimeoutMs);
     PUT_S("mqtt.host", c.mqtt.host);
     PUT_N("mqtt.port", c.mqtt.port);
     PUT_S("mqtt.username", c.mqtt.username);

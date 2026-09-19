@@ -453,6 +453,7 @@ void App::enterMode(UiMode mode) {
         return;
     }
     _uiMode = mode;
+    _btNavArtistPending = false;
     if (mode != UiMode::Home) touchOverlayTimeout();
     const char* label = mode == UiMode::Home ? "HOME" :
         mode == UiMode::Volume ? "VOLUME" :
@@ -494,6 +495,7 @@ void App::processCommands() {
                     touchOverlayTimeout();
                     const int step = _config.config().encoder.volumeStep;
                     const int ticks = abs(cmd.value) / step;
+                    if (ticks > 0) _btNavArtistPending = true;
                     for (int i = 0; i < ticks; ++i) {
                         if (!_bluetoothAvailable) {
                             Logger::warn("BT", "Track navigation unavailable");
@@ -651,23 +653,34 @@ void App::loop() {
     }
 
     if (_bluetoothAvailable) {
+        const uint32_t metadataBefore = _bluetooth.metadataRevision();
+        const uint32_t artistBefore = _bluetooth.artistRevision();
         _bluetooth.loop();
         updateBluetoothOwnership();
+        if (_uiMode == UiMode::BtTrackNav &&
+            _bluetooth.metadataRevision() != metadataBefore) {
+            touchOverlayTimeout();
+            if (_bluetooth.artistRevision() != artistBefore)
+                _btNavArtistPending = false;
+        }
     }
     processCommands();
     if (_uiMode == UiMode::BtTrackNav &&
         StateStore::instance().snapshot().audioSource != AudioSource::Bluetooth)
         returnHome();
-    if (_uiMode != UiMode::Home &&
-        millis() - _overlayActivityMs >= AppConfig::VOLUME_SCREEN_TIMEOUT_MS)
-        returnHome();
+    if (_uiMode != UiMode::Home) {
+        const uint32_t timeoutMs = _uiMode == UiMode::Volume
+            ? AppConfig::VOLUME_SCREEN_TIMEOUT_MS
+            : _config.config().ui.navigationTimeoutMs;
+        if (millis() - _overlayActivityMs >= timeoutMs) returnHome();
+    }
 
     _wifi.loop();
     _time.loop();
     _web.loop();
 
     if (_display) {
-        _display->loop(_uiMode);
+        _display->loop(_uiMode, _btNavArtistPending);
     }
     // Take a second cheap AB sample after network/display work.
     if (_config.features().encoderEnabled && Board::HAS_ENCODER) {

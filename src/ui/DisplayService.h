@@ -11,7 +11,7 @@ public:
     explicit DisplayService(const St7789Pins& pins);
 
     void begin();
-    void loop(UiMode mode);
+    void loop(UiMode mode, bool btNavArtistPending);
     void redraw();
     bool clearToBlack();
     bool isInitialized() const { return _initialized; }
@@ -32,6 +32,8 @@ private:
     String _lastBtPeer;
     String _lastBtTitle;
     String _lastBtArtist;
+    String _lastBtNavArtist;
+    bool _lastBtNavArtistPending = false;
 
     int _lastWifiLevel = -1;
     bool _lastWifiConnected = false;
@@ -84,6 +86,7 @@ private:
     void drawVolumeValue(int volume);
     void drawVolumeIp(const String& ip);
     void drawBtTrackNavScreen();
+    void drawBtNavArtist(const String& artist);
 
     static int wifiLevel(int rssi);
 

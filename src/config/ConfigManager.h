@@ -53,6 +53,7 @@ private:
     bool migrateV2ToV3();
     bool migrateV3ToV4();
     bool migrateV4ToV5();
+    bool migrateV5ToV6();
     bool migrateLegacyNamespace();
-    bool writeSnapshot(const RuntimeConfig& candidate);
+    bool writeSnapshot(const RuntimeConfig& candidate, uint16_t version = ConfigSchema::CURRENT_VERSION);
 };
