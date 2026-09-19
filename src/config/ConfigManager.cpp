@@ -1,10 +1,9 @@
 #include "ConfigManager.h"
+#include "../diagnostics/Logger.h"
 
 namespace {
-// LEGACY NVS COMPATIBILITY: retain the existing namespace so user settings
-// survive the product rename. TODO(ConfigManager): migrate all keys to
-// "voxone" with verified writes and a power-loss-safe completion marker;
-// keep the legacy namespace intact for rollback.
+// Legacy NVS compatibility: copy verified values from "dinaudio" to
+// "voxone", write the completion marker last, and keep legacy data intact.
 static constexpr const char* NVS_NAMESPACE = "voxone";
 static constexpr const char* LEGACY_NVS_NAMESPACE = "dinaudio";
 static constexpr const char* KEY_MIGRATION_COMPLETE = "mig_done";
@@ -88,6 +87,10 @@ bool ConfigManager::migrateIfNeeded(uint16_t storedVersion) {
     if (version == 3) {
         if (!migrateV3ToV4()) return false;
         version = 4;
+    }
+    if (version == 4) {
+        if (!migrateV4ToV5()) return false;
+        version = 5;
     }
 
     return version == ConfigSchema::CURRENT_VERSION;
@@ -195,6 +198,14 @@ bool ConfigManager::migrateV3ToV4() {
     return _prefs.putUShort(KEY_SCHEMA_VERSION, 4) > 0;
 }
 
+bool ConfigManager::migrateV4ToV5() {
+    // Keep cfg_ver=4 until every schema-5 field has been written and verified.
+    // Missing fields load from schema-5 defaults; invalid stored data must not
+    // be replaced by the runtime safe fallback during migration.
+    if (!load(false)) return false;
+    return writeSnapshot(_config);
+}
+
 bool ConfigManager::migrateV2ToV3() {
     // VoxOne 0.4.0: wydluzony grace period dla realnego
     // wylaczenia i ponownego wlaczenia Bluetooth w telefonie.
@@ -211,7 +222,7 @@ bool ConfigManager::migrateV2ToV3() {
     ) > 0;
 }
 
-bool ConfigManager::load() {
+bool ConfigManager::load(bool allowFallback) {
     _config.schemaVersion =
         _prefs.getUShort(
             KEY_SCHEMA_VERSION,
@@ -225,18 +236,10 @@ bool ConfigManager::load() {
         _prefs.getString(KEY_WIFI_PASS, "");
 
     _config.audio.maxVolume =
-        constrain(
-            _prefs.getInt(KEY_MAX_VOLUME, DEFAULT_MAX_VOLUME),
-            1,
-            100
-        );
+        _prefs.getInt(KEY_MAX_VOLUME, DEFAULT_MAX_VOLUME);
 
     _config.audio.volume =
-        constrain(
-            _prefs.getInt(KEY_VOLUME, DEFAULT_VOLUME),
-            0,
-            _config.audio.maxVolume
-        );
+        _prefs.getInt(KEY_VOLUME, DEFAULT_VOLUME);
 
     _config.bluetooth.autoReconnect =
         _prefs.getBool(
@@ -245,13 +248,9 @@ bool ConfigManager::load() {
         );
 
     _config.bluetooth.reconnectDelayMs =
-        constrain(
-            _prefs.getUInt(
-                KEY_BT_RECONNECT_DELAY,
-                DEFAULT_BT_RECONNECT_DELAY_MS
-            ),
-            static_cast<uint32_t>(0),
-            static_cast<uint32_t>(60000)
+        _prefs.getUInt(
+            KEY_BT_RECONNECT_DELAY,
+            DEFAULT_BT_RECONNECT_DELAY_MS
         );
 
     _config.features.bluetoothEnabled = _prefs.getBool(KEY_FEATURE_BT, true);
@@ -263,8 +262,45 @@ bool ConfigManager::load() {
     _config.features.mqttEnabled = _prefs.getBool(KEY_FEATURE_MQTT, false);
     _config.features.yoRadioWsEnabled = _prefs.getBool(KEY_FEATURE_YORADIO, true);
     _config.features.haDiscoveryEnabled = _prefs.getBool(KEY_FEATURE_HA, true);
-
-
+    loadBackend();
+    if (!validate(_config)) {
+        if (!allowFallback) return false;
+        // Preserve only valid credentials/legacy values; boot with modules OFF.
+        RuntimeConfig safe;
+        if (_config.network.wifiSsid.length() <= 32 &&
+            _config.network.wifiPassword.length() <= 64) {
+            safe.network.wifiSsid = _config.network.wifiSsid;
+            safe.network.wifiPassword = _config.network.wifiPassword;
+        }
+        if (_config.audio.maxVolume >= 1 &&
+            _config.audio.maxVolume <= 100) {
+            safe.audio.maxVolume = _config.audio.maxVolume;
+        }
+        if (_config.audio.volume >= 0 &&
+            _config.audio.volume <= safe.audio.maxVolume) {
+            safe.audio.volume = _config.audio.volume;
+        }
+        safe.bluetooth.autoReconnect = _config.bluetooth.autoReconnect;
+        if (_config.bluetooth.reconnectDelayMs <= 60000) {
+            safe.bluetooth.reconnectDelayMs =
+                _config.bluetooth.reconnectDelayMs;
+        }
+        safe.features.bluetoothEnabled = false;
+        safe.features.radioEnabled = false;
+        safe.features.displayEnabled = false;
+        safe.features.encoderEnabled = false;
+        safe.features.playMediaEnabled = false;
+        safe.features.mqttEnabled = false;
+        safe.features.yoRadioWsEnabled = false;
+        safe.features.haDiscoveryEnabled = false;
+        safe.schemaVersion = _config.schemaVersion;
+        if (!validate(safe)) {
+            Logger::error("CONFIG", "Safe fallback validation failed");
+            return false;
+        }
+        _config = safe;
+        Logger::warn("CONFIG", "Invalid stored configuration; safe runtime defaults");
+    }
     return true;
 }
 

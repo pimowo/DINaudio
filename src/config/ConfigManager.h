@@ -12,6 +12,12 @@ public:
     const RuntimeConfig& config() const { return _config; }
     uint16_t schemaVersion() const { return _config.schemaVersion; }
 
+    // Save validates and persists a complete candidate. Runtime reloads on reboot.
+    bool save(const RuntimeConfig& candidate);
+    bool resetToDefaults();
+    bool validate(const RuntimeConfig& candidate) const;
+    DefaultSource effectiveDefaultSource() const;
+
     String wifiSsid() const { return _config.network.wifiSsid; }
     String wifiPassword() const { return _config.network.wifiPassword; }
     bool saveWifi(const String& ssid, const String& password);
@@ -39,12 +45,14 @@ private:
     Preferences _legacyPrefs;
     RuntimeConfig _config;
 
-    bool load();
+    bool load(bool allowFallback = true);
+    void loadBackend();
     bool migrateIfNeeded(uint16_t storedVersion);
     bool initializeSchemaV1();
     bool migrateV1ToV2();
     bool migrateV2ToV3();
     bool migrateV3ToV4();
+    bool migrateV4ToV5();
     bool migrateLegacyNamespace();
+    bool writeSnapshot(const RuntimeConfig& candidate);
 };
-

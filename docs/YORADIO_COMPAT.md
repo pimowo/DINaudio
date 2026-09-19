@@ -383,7 +383,7 @@ volume and restores the exact base source.
 
 An optional future source extension may report source=PLAY_MEDIA while active. It is
 additive and ignorable by legacy clients. After completion or failure it reports
-RADIO, BT or STOP. TTS must never become a station ID or permanently change
+RADIO, BT or STOP. PLAY_MEDIA must never become a station ID or permanently change
 base ownership.
 
 ### PLAY_MEDIA volume policy
@@ -397,7 +397,7 @@ Future configuration:
 - play_media.volume_mode=CURRENT uses current logical volume.
 - play_media.volume_mode=FIXED uses play_media.fixed_volume in logical range 0..100.
 
-FIXED respects the global physical/max output limit. The pre-TTS volume is always
+FIXED respects the global physical/max output limit. The pre-PLAY_MEDIA volume is always
 restored after completion, URL error, stream break, decoder error or timeout.
 Legacy absolute vol x and published volume remain 0..254 only at the future
 YoRadioCompatService boundary; this must not leak into VoxOne state.
@@ -412,7 +412,7 @@ For BT: suspend A2DP safely, release I2S, play media, then resume BT. For RADIO:
 save station/URL and state, stop stream, play media, then restore radio. For STOP:
 restore STOP. Errors and timeouts must clean up PlayMedia and restore
 deterministically; they must never leave AudioOutputManager or I2S blocked.
-BT changes during TTS need a deterministic policy.
+BT changes during PLAY_MEDIA need a deterministic policy.
 
 ## Volume compatibility correction
 
@@ -437,6 +437,6 @@ restarts. There is no hot reload.
 
 VoxOne logical volume remains 0..100. Absolute yoRadio 0..254 conversion is
 performed only at the compatibility boundary. volp and volm are logical +/-1.
-Feature flags can disable BT, Radio, TTS, Display, Encoder, Buttons, MQTT,
+Feature flags can disable BT, Radio, PLAY_MEDIA, Display, Encoder, Buttons, MQTT,
 yoRadio WS and HA Discovery; disabled modules do not initialize, reconnect or
 reserve runtime resources. The complete field contract is in CONFIG_SCHEMA.md.
