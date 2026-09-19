@@ -19,7 +19,55 @@ nazwami milestone'ów.
 
 ## Cel
 
+## Source model and temporary audio override - planned
+
+Normal DINaudio base states are RADIO, BLUETOOTH and STOP. PLAY_MEDIA is a
+temporary highest-priority override and physical third audio owner:
+
+```text
+RADIO -> PLAY_MEDIA -> RADIO
+BT    -> PLAY_MEDIA -> BT
+STOP  -> PLAY_MEDIA -> STOP
+```
+
+Full PLAY_MEDIA is not implemented. It may play TTS, MP3, notification sounds,
+HA media or a supported audio URL. Home Assistant owns the queue of requests;
+DINaudio snapshots the base source and logical volume, acquires
+PlayMedia, applies policy, detects completion/error/timeout, cleans up and
+restores the saved base source. HA must not guess duration or perform its own
+pause/wait/resume sequence.
+
+Future play_media.volume_mode is CURRENT or FIXED. CURRENT uses current logical volume;
+FIXED uses play_media.fixed_volume in logical range 0..100 and respects the physical limit.
+The previous volume is always restored. Internal logical volume is exclusively
+0..100; yoRadio 0..254 conversion belongs only at the future compatibility
+boundary. volp/volm remain logical +/-1.
+
+Future lifecycle is snapshot -> suspend/release -> acquire PlayMedia -> play ->
+completion/error/timeout -> cleanup -> restore. BT requires A2DP suspend, I2S
+release and resume; RADIO saves station/URL and playback state; STOP remains
+STOP. Failures must never leave PlayMedia or I2S locked. This model is PLANNED,
+not current firmware behavior.
 ## Minimal MP3 RadioService checkpoint
+
+## Runtime configuration model - planned
+
+DINaudio uses one firmware and a runtime configuration. WWW edits are staged;
+only ZAPISZ validates the complete snapshot, writes all values to NVS, sends a
+restart response, waits briefly for HTTP delivery and calls ESP.restart().
+There is no hot reload and invalid configuration produces no partial NVS write.
+
+The planned feature flags are bluetooth_enabled, radio_enabled, play_media_enabled,
+display_enabled, encoder_enabled, buttons_enabled, mqtt_enabled,
+yoradio_ws_enabled and ha_discovery_enabled. Defaults are respectively:
+true, true, true, true, true, false, false, true, true. Disabled modules are
+not initialized, register no callbacks, reconnect or reserve I2S/GPIO resources.
+
+The full field contract, defaults, visibility, validation and restart requirement
+is in CONFIG_SCHEMA.md. Runtime profiles are combinations of these flags, not
+separate firmware variants. Logical volume remains 0..100; yoRadio 0..254 is
+only a compatibility-boundary representation. Every persistent save requires
+restart.
 
 Minimal RadioService is code-complete for measurement and hardware testing.
 It uses direct Helix MP3, HTTP MP3 and the existing AudioOutputManager.
@@ -33,7 +81,7 @@ ICY metadata, stream reconnect, station list and AAC are not implemented.
 DINaudio to autonomiczny moduł audio na klasycznym ESP32:
 - radio internetowe,
 - Bluetooth A2DP,
-- `play_media` / TTS z Home Assistant,
+- `play_media` from Home Assistant, including TTS as one use case,
 - WWW,
 - MQTT / HA,
 - kompatybilny WebSocket yoRadio,
@@ -65,7 +113,7 @@ Profil: `yoradio-esp32u-st7789-76-pcm5102a`
 
 ## Priorytety źródeł
 
-1. PLAY_MEDIA / TTS
+1. PLAY_MEDIA
 2. Bluetooth po połączeniu telefonu
 3. Radio
 4. STOP

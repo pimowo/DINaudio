@@ -152,8 +152,8 @@ Confirmed inbound forms and proposed future CommandQueue translation:
 | Toggle | toggle= | toggle | TogglePlayStop |
 | Stop | stop= | stop | SetStop |
 | Start last station / resume | start= | start | SetPlay, subject to active-source policy |
-| Volume down | volm= | volm | External accumulator -> SetVolumeAbsolute |
-| Volume up | volp= | volp | External accumulator -> SetVolumeAbsolute |
+| Volume down | volm= | volm | Logical volume -1 -> future queue action |
+| Volume up | volp= | volp | Logical volume +1 -> future queue action |
 | Absolute volume | vol=127 / volume=127 | vol 127 | Converted SetVolumeAbsolute |
 | Select/play station | play=12 / playstation=12 | play 12 | Future SelectStation / PlayStation command |
 
@@ -223,22 +223,21 @@ optional STOP denotes no active source. No Bluetooth code changes are requested.
 
 ## Volume 0..254 outside / 0..100 inside
 
-Proposed nearest-integer conversion, after clamping nonnegative input:
+Legacy boundary conversion, if an absolute yoRadio value must be adapted:
 
 ```text
 internal = floor((external * 100 + 127) / 254)
 external_reported = floor((internal * 254 + 50) / 100)
 ```
 
-0 maps exactly to 0 and 254 to 100. Wire compatibility preserves range 0..254,
-but 101 internal levels cannot represent all 255 external settings losslessly.
-Report quantized actual volume consistently on WS/MQTT, not an unachieved setting.
+0 maps exactly to 0 and 254 to 100 at the compatibility boundary. Wire
+compatibility preserves 0..254; DINaudio internal logical volume is only 0..100.
 
-Upstream volsteps defaults to 1 external unit. Rounding each +/-1 to an internal
-delta produces zero. Maintain a requested external-scale accumulator, apply
-volsteps there, then convert to SetVolumeAbsolute. Do not reset the accumulator
-on every quantized echo: repeated steps would get stuck. Rebase it when another
-input changes volume. Test monotonic steps, clamping and feedback-loop clients.
+The conversion is performed only by the future YoRadioCompatService. DINaudio
+does not use this mapping as its internal model. volp and volm are logical +/-1
+commands in the 0..100 range, with ordinary clamping. Test monotonic steps,
+clamping and feedback-loop clients at the
+compatibility boundary.
 
 ## Bitrate semantics and SBC calculation
 
@@ -360,3 +359,84 @@ BluetoothService / RadioService -> AudioOutputManager. Outbound adapters read
 committed StateStore snapshots. No independent audio owner, direct callback I2S
 path or transport-driven source heuristic is permitted. This standard is a baseline,
 not a completed 0.5.0 implementation.
+
+
+## DINaudio PLAY_MEDIA extension - planned
+
+This future extension does not change legacy yoRadio WebSocket or MQTT.
+DINaudio has three normal base states: RADIO, BT and STOP. PLAY_MEDIA is a
+physical third audio owner but a temporary highest-priority override, never a
+normal user source:
+
+```text
+RADIO -> PLAY_MEDIA -> RADIO
+BT    -> PLAY_MEDIA -> BT
+STOP  -> PLAY_MEDIA -> STOP
+```
+
+PLAY_MEDIA may carry TTS, MP3 files, notification sounds, HA-selected media or
+supported audio URLs. Home Assistant generates and queues requests. It sends playback requests only;
+it must not implement pause/wait/play timing, guess duration or restore source.
+DINaudio snapshots base source and logical volume, takes PlayMedia ownership,
+applies policy, detects completion/error/timeout, releases PlayMedia, restores
+volume and restores the exact base source.
+
+An optional future source extension may report source=PLAY_MEDIA while active. It is
+additive and ignorable by legacy clients. After completion or failure it reports
+RADIO, BT or STOP. TTS must never become a station ID or permanently change
+base ownership.
+
+### PLAY_MEDIA volume policy
+
+DINaudio internal logical volume is exclusively 0..100. volp and volm mean
+logical +1 and -1, clamped to that range. There is no internal 0..254 model and
+step commands use logical integer units only.
+
+Future configuration:
+
+- play_media.volume_mode=CURRENT uses current logical volume.
+- play_media.volume_mode=FIXED uses play_media.fixed_volume in logical range 0..100.
+
+FIXED respects the global physical/max output limit. The pre-TTS volume is always
+restored after completion, URL error, stream break, decoder error or timeout.
+Legacy absolute vol x and published volume remain 0..254 only at the future
+YoRadioCompatService boundary; this must not leak into DINaudio state.
+
+### Temporary override lifecycle and failures
+
+request -> snapshot base source/volume -> suspend/release producer
+-> acquire PlayMedia -> apply policy -> play
+-> completion/error/timeout -> cleanup -> restore volume/source
+
+For BT: suspend A2DP safely, release I2S, play media, then resume BT. For RADIO:
+save station/URL and state, stop stream, play media, then restore radio. For STOP:
+restore STOP. Errors and timeouts must clean up PlayMedia and restore
+deterministically; they must never leave AudioOutputManager or I2S blocked.
+BT changes during TTS need a deterministic policy.
+
+## Volume compatibility correction
+
+Legacy yoRadio wire scale remains 0..254 for absolute vol x and published
+volume. This is only a boundary representation. DINaudio logical scale remains
+0..100; volp and volm are logical +/-1 with ordinary clamping.
+Absolute conversion happens only in the future YoRadioCompatService.
+
+## PLAY_MEDIA validation status
+
+Planned hardware tests include RADIO/BT CURRENT and FIXED restore, STOP restore,
+URL/Wi-Fi/decoder errors, exact volume restoration, FIXED max limiting, repeated
+HA requests without heap leaks, responsive WS/MQTT, watchdog safety and correct
+AudioOutputManager ownership after every outcome.
+
+## Runtime configuration boundary - planned
+
+The yoRadio adapter is enabled only when features.yoradio_ws_enabled is true.
+WWW configuration is staged and applied only after ZAPISZ validates the complete
+snapshot, writes all NVS values, sends the restart response, waits briefly and
+restarts. There is no hot reload.
+
+DINaudio logical volume remains 0..100. Absolute yoRadio 0..254 conversion is
+performed only at the compatibility boundary. volp and volm are logical +/-1.
+Feature flags can disable BT, Radio, TTS, Display, Encoder, Buttons, MQTT,
+yoRadio WS and HA Discovery; disabled modules do not initialize, reconnect or
+reserve runtime resources. The complete field contract is in CONFIG_SCHEMA.md.

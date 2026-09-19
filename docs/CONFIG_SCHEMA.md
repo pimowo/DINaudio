@@ -1,0 +1,167 @@
+# DINaudio runtime configuration schema
+
+Status: PLANNED configuration contract. This document does not implement
+ConfigManager, NVS migration or WWW. Firmware remains 0.4.0.
+
+## Configuration transaction
+
+Editing a WWW field does not change live behavior. Only ZAPISZ:
+
+1. validates the complete configuration and GPIO/resource constraints;
+2. writes the complete validated snapshot to NVS;
+3. sends the WWW restart response;
+4. waits briefly for HTTP delivery;
+5. calls ESP.restart();
+6. boots with the new configuration.
+
+There is no hot reload. Every persistent save requires a restart. A failed
+validation leaves NVS unchanged. Every field below has Restart required = YES.
+
+## Feature flags
+
+| Field | Type | Default | Range/Enum | Visible when | Validation |
+|---|---|---:|---|---|---|
+| features.bluetooth_enabled | bool | true | true/false | always | no duplicate active audio owner |
+| features.radio_enabled | bool | true | true/false | always | radio fields inactive when false |
+| features.play_media_enabled | bool | true | true/false | always | PlayMedia only when enabled |
+| features.display_enabled | bool | true | true/false | always | display pins reserved only when true |
+| features.encoder_enabled | bool | true | true/false | always | encoder pins reserved only when true |
+| features.buttons_enabled | bool | false | true/false | always | valid button mapping when enabled |
+| features.mqtt_enabled | bool | false | true/false | always | valid network settings |
+| features.yoradio_ws_enabled | bool | true | true/false | always | adapter absent when false |
+| features.ha_discovery_enabled | bool | true | true/false | MQTT on | requires MQTT |
+
+Disabled modules are not initialized, register no callbacks, do not reconnect,
+and reserve no I2S/GPIO/peripheral resources after reboot. Their detailed
+settings may remain stored but are inactive.
+
+## Audio and source
+
+| Field | Type | Default | Range/Enum | Visible when | Validation |
+|---|---|---:|---|---|---|
+| device.name | string | DINaudio | bounded UTF-8 | always | nonempty, bounded |
+| audio.start_volume | int | 40 | 0..100 | always | logical/output policy |
+| audio.max_output_volume | int | 100 | 0..100 | always | physical output limit |
+| audio.output_type | enum | PCM5102A | PCM5102A/MAX98357A | always | supported board output |
+| audio.i2s_bclk | GPIO | 26 | valid GPIO | always | no active conflict |
+| audio.i2s_lrclk | GPIO | 25 | valid GPIO | always | no active conflict |
+| audio.i2s_dout | GPIO | 27 | valid GPIO | always | no active conflict |
+| audio.default_source | enum | STOP | STOP/RADIO/BT | always | disabled source -> STOP |
+
+Logical volume is exclusively 0..100. max_output_volume limits/maps physical
+output and must not change the logical scale. RADIO requires radio_enabled;
+BT requires bluetooth_enabled; otherwise default_source falls back to STOP.
+
+## PLAY_MEDIA
+
+PLAY_MEDIA is a temporary highest-priority override over RADIO, BT or STOP.
+It may play TTS, MP3, notification sounds, HA media or a supported audio URL,
+not a third normal source. HA owns the request queue.
+
+| Field | Type | Default | Range/Enum | Visible when | Validation |
+|---|---|---:|---|---|---|
+| play_media.volume_mode | enum | CURRENT | CURRENT/FIXED | play_media_enabled | supported policy |
+| play_media.fixed_volume | int | 60 | 0..100 | play_media_enabled and FIXED | <= physical limit |
+
+CURRENT uses current logical volume. FIXED temporarily uses fixed_volume.
+The pre-PLAY_MEDIA volume is restored after completion, error or timeout. Planned
+lifecycle: snapshot base source/volume -> suspend/release producer -> acquire
+PlayMedia -> play -> cleanup -> restore. No DINaudio TTS queue is planned.
+
+## Bluetooth and radio
+
+| Field | Type | Default | Range/Enum | Visible when | Validation |
+|---|---|---:|---|---|---|
+| bluetooth.device_name | string | device.name | bounded UTF-8 | BT enabled | valid name |
+| bluetooth.reconnect_enabled | bool | true | true/false | BT enabled | none |
+| bluetooth.reconnect_grace_ms | int | 10000 | positive ms | BT enabled | bounded safe timeout |
+| bluetooth.discoverable_enabled | bool | true | true/false | BT enabled | none |
+| bluetooth.discoverable_sec | int | 120 | positive seconds | BT enabled | bounded |
+| bluetooth.remember_last_peer | bool | true | true/false | BT enabled | none |
+| radio.default_station | int | 0 | 0 or valid 1-based station | radio enabled | 0 means none |
+| radio.autostart | bool | false | true/false | radio enabled | valid station if true |
+| radio.reconnect_enabled | bool | true | true/false | radio enabled | none |
+| radio.stream_timeout_ms | int | 10000 | positive ms | radio enabled | bounded safe timeout |
+| radio.icy_metadata_enabled | bool | true | true/false | radio enabled | future feature |
+
+The existing BT reconnect grace default is 10000 ms. ICY and radio reconnect
+remain planned where not implemented.
+
+## Display, encoder and buttons
+
+| Field | Type | Default | Range/Enum | Visible when | Validation |
+|---|---|---:|---|---|---|
+| display.type | enum | ST7789 | SSD1306/ST7789 | display enabled | fixed renderer exists |
+| display.brightness | int | 80 | 0..100 | display enabled | hardware-supported |
+| display.screensaver_enabled | bool | false | true/false | display enabled | none |
+| display.screensaver_timeout_sec | int | 300 | positive seconds | display enabled | bounded |
+| display.st7789.sck/mosi/cs/dc/rst | GPIO | 18/23/5/4/-1 | valid GPIO/-1 | ST7789 | no conflicts |
+| display.ssd1306.sda/scl/address | GPIO/address | 21/22/0x3C | valid I2C | SSD1306 | no conflicts |
+| encoder.pin_a/pin_b/pin_button | GPIO | 35/33/32 | valid GPIO | encoder enabled | no conflicts |
+| encoder.direction | enum | REVERSED | NORMAL/REVERSED | encoder enabled | supported |
+| encoder.volume_step | int | 1 | positive | encoder enabled | logical step |
+| encoder.acceleration_enabled | bool | true | true/false | encoder enabled | none |
+| buttons.* | structured | none | GPIO/action/debounce | buttons enabled | planned bounded mapping |
+
+Each display has a fixed renderer; users configure type and pins, not arbitrary
+layout. Buttons mapping remains planned.
+
+## YoRadio, MQTT and network
+
+| Field | Type | Default | Range/Enum | Visible when | Validation |
+|---|---|---|---|---|---|
+| mqtt.host | string | ? | hostname/IP | MQTT enabled | valid host |
+| mqtt.port | int | 1883 | 1..65535 | MQTT enabled | valid port |
+| mqtt.username/password | string | ? | bounded | MQTT enabled | transport rules |
+| mqtt.root_topic | string | ? | bounded topic | MQTT enabled | valid topic |
+| yoradio.playlist_compat | bool | true | true/false | WS enabled | legacy contract |
+| yoradio.extensions_enabled | bool | true | true/false | WS enabled | optional fields |
+| network.hostname | string | dinaudio | DNS-safe | always | valid hostname |
+| network.mdns_enabled | bool | true | true/false | always | none |
+| network.dhcp_enabled | bool | true | true/false | always | valid network mode |
+| network.ntp_enabled | bool | true | true/false | always | none |
+| network.timezone | string | CET-1CEST,... | valid TZ | always | parseable timezone |
+
+HA Discovery runs only when MQTT is enabled. YoRadio absolute 0..254 volume is
+converted only at the future compatibility boundary; DINaudio remains 0..100.
+Wi-Fi credentials remain under the existing configuration architecture.
+
+## GPIO and resource rules
+
+- No active modules may claim the same GPIO.
+- Input-only GPIOs are used only for input functions.
+- Flash/boot-sensitive pins require explicit safe handling.
+- -1 means unused only where the field permits it.
+- I2C sharing is allowed only where explicitly supported.
+- Display/encoder/BT/Radio/TTS OFF releases their runtime reservations.
+- AudioOutputManager remains the exclusive physical I2S owner.
+- Invalid configuration rejects the whole transaction; no partial NVS write.
+
+## Runtime profiles
+
+Full (BT, Radio, TTS, Display, Encoder); Headless (BT, Radio, TTS);
+Radio + TTS; BT + TTS; TTS Speaker (TTS only, MAX98357A possible);
+Radio only; BT only; and TTS + Display. These are runtime combinations, not
+separate firmware variants.
+
+## Startup and schema evolution
+
+Planned startup: load NVS -> validate/recover defaults -> Core/network ->
+AudioOutput -> enabled BT/Radio/PlayMedia -> enabled Display/Encoder/Buttons
+-> enabled MQTT/yoRadio adapters -> publish state. Final order must respect
+the existing App ownership lifecycle.
+
+The repository already has schema history, including schema 3 and migrations.
+New fields require an explicit schema increment and migration plan. Migrations
+preserve Wi-Fi, password, volume and unrelated existing values.
+
+## Status
+
+CONFIRMED/CURRENT: existing config/schema history, AudioOutputManager, BT
+ownership, minimal RadioService, ST7789 and logical volume 0..100.
+
+PLANNED: runtime feature toggles, SSD1306, MAX98357A, full PlayMedia/TTS,
+dynamic WWW configuration, HA handoff and GPIO conflict validation.
+
+PENDING HARDWARE VALIDATION: no-OTA partition, shared audio lifecycle,
+RadioService runtime, BT/Radio/PLAY_MEDIA switching, MAX98357A and SSD1306.

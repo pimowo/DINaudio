@@ -1,5 +1,52 @@
 # TEST PLAN
 
+## PLAY_MEDIA - planned, pending hardware validation
+
+PLAY_MEDIA is a temporary override and physical third audio owner, not a normal
+user source. It may play TTS or ordinary media. Home
+Assistant owns the request queue; DINaudio owns suspend, completion, cleanup,
+volume restoration and base-source restoration.
+
+- [ ] RADIO -> PLAY_MEDIA CURRENT -> RADIO
+- [ ] RADIO -> PLAY_MEDIA FIXED -> RADIO
+- [ ] BT -> PLAY_MEDIA CURRENT -> BT
+- [ ] BT -> PLAY_MEDIA FIXED -> BT
+- [ ] STOP -> PLAY_MEDIA -> STOP
+- [ ] PLAY_MEDIA URL/Wi-Fi/decoder errors perform restore
+- [ ] previous logical volume 0..100 is restored exactly
+- [ ] FIXED volume respects physical/max output limit
+- [ ] repeated HA PLAY_MEDIA requests do not leak heap
+- [ ] repeated BT/RADIO overrides do not degrade playback
+- [ ] WebSocket/MQTT remain responsive during TTS
+- [ ] watchdog is not triggered
+- [ ] AudioOutputManager has the correct owner after every outcome
+
+All TTS acceptance criteria remain pending until hardware tests are complete.
+
+## Runtime configuration - planned, pending validation
+
+- [ ] Full profile: BT, Radio, TTS, Display and Encoder enabled
+- [ ] Headless profile: Display and Encoder disabled
+- [ ] Radio + TTS profile with BT disabled
+- [ ] BT + TTS profile with Radio disabled
+- [ ] TTS-only speaker profile with MAX98357A
+- [ ] Radio-only and BT-only profiles
+- [ ] Display OFF and Encoder OFF release their GPIO resources
+- [ ] BT, Radio and TTS OFF release runtime resources
+- [ ] MQTT OFF prevents MQTT and HA Discovery startup
+- [ ] yoRadio WS OFF prevents adapter startup
+- [ ] SSD1306 and ST7789 profile validation
+- [ ] custom GPIO configuration without conflicts
+- [ ] conflicting GPIO configuration is rejected atomically
+- [ ] invalid range/default_source is rejected or falls back to STOP
+- [ ] edits before ZAPISZ do not change live behavior
+- [ ] ZAPISZ validates, saves, responds, delays and restarts
+- [ ] configuration survives reboot and preserves Wi-Fi/password/volume
+- [ ] reset restores documented defaults
+
+All runtime configuration criteria remain pending; ConfigManager and WWW
+implementation are not part of the current checkpoint.
+
 ## Minimal MP3 RadioService - pending hardware validation
 
 - [x] HTTP MP3, Helix MP3, start/stop/loop and build/link

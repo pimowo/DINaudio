@@ -83,10 +83,15 @@ To przygotowanie kodowe nie jest implementacją radia ani wersji 0.5.0.
 
 ## M4 — SOURCE MANAGER
 - RADIO ↔ BT
-- PLAY_MEDIA
-- restore previous source
+- temporary PLAY_MEDIA override over RADIO, BT or STOP
+- restore previous base source and logical volume
 - technical mute
 - fade transitions
+
+PLAY_MEDIA is a physical third audio owner but remains a temporary override,
+not a normal user source. It can carry TTS or ordinary media. Home Assistant
+provides the request queue; DINaudio provides the PlayMedia lifecycle. Planned;
+requires hardware validation.
 
 ## M5 — PROTOCOLS
 - yoRadio `/ws`
