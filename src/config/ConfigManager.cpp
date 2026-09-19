@@ -1,11 +1,13 @@
-﻿#include "ConfigManager.h"
+#include "ConfigManager.h"
 
 namespace {
 // LEGACY NVS COMPATIBILITY: retain the existing namespace so user settings
 // survive the product rename. TODO(ConfigManager): migrate all keys to
 // "voxone" with verified writes and a power-loss-safe completion marker;
 // keep the legacy namespace intact for rollback.
-static constexpr const char* NVS_NAMESPACE = "dinaudio";
+static constexpr const char* NVS_NAMESPACE = "voxone";
+static constexpr const char* LEGACY_NVS_NAMESPACE = "dinaudio";
+static constexpr const char* KEY_MIGRATION_COMPLETE = "mig_done";
 
 static constexpr const char* KEY_SCHEMA_VERSION = "cfg_ver";
 static constexpr const char* KEY_WIFI_SSID = "wifi_ssid";
@@ -16,6 +18,17 @@ static constexpr const char* KEY_MAX_VOLUME = "max_volume";
 static constexpr const char* KEY_BT_AUTO_RECONNECT = "bt_reconn";
 static constexpr const char* KEY_BT_RECONNECT_DELAY = "bt_reconn_ms";
 
+static constexpr const char* KEY_FEATURE_BT = "feat_bt";
+static constexpr const char* KEY_FEATURE_RADIO = "feat_radio";
+static constexpr const char* KEY_FEATURE_PLAY = "feat_play";
+static constexpr const char* KEY_FEATURE_DISPLAY = "feat_disp";
+static constexpr const char* KEY_FEATURE_ENCODER = "feat_enc";
+static constexpr const char* KEY_FEATURE_BUTTONS = "feat_btn";
+static constexpr const char* KEY_FEATURE_MQTT = "feat_mqtt";
+static constexpr const char* KEY_FEATURE_YORADIO = "feat_yoradio";
+static constexpr const char* KEY_FEATURE_HA = "feat_ha";
+
+
 static constexpr int DEFAULT_VOLUME = 25;
 static constexpr int DEFAULT_MAX_VOLUME = 100;
 static constexpr bool DEFAULT_BT_AUTO_RECONNECT = true;
@@ -24,6 +37,11 @@ static constexpr uint32_t DEFAULT_BT_RECONNECT_DELAY_MS = 10000;
 
 bool ConfigManager::begin() {
     if (!_prefs.begin(NVS_NAMESPACE, false)) {
+        return false;
+    }
+
+    if (!_prefs.getBool(KEY_MIGRATION_COMPLETE, false) &&
+        !migrateLegacyNamespace()) {
         return false;
     }
 
@@ -67,8 +85,64 @@ bool ConfigManager::migrateIfNeeded(uint16_t storedVersion) {
         version = 3;
     }
 
+    if (version == 3) {
+        if (!migrateV3ToV4()) return false;
+        version = 4;
+    }
+
     return version == ConfigSchema::CURRENT_VERSION;
 }
+
+bool ConfigManager::migrateLegacyNamespace() {
+    // A read-only open leaves a fresh device's legacy namespace untouched.
+    if (!_legacyPrefs.begin(LEGACY_NVS_NAMESPACE, true)) {
+        return _prefs.putBool(KEY_MIGRATION_COMPLETE, true) > 0;
+    }
+
+    auto copyString = [this](const char* key) {
+        if (!_legacyPrefs.isKey(key)) return true;
+        const String value = _legacyPrefs.getString(key, "");
+        // Preferences::putString returns zero for a valid empty string.
+        _prefs.putString(key, value);
+        return _prefs.isKey(key) && _prefs.getString(key, "") == value;
+    };
+    auto copyInt = [this](const char* key) {
+        if (!_legacyPrefs.isKey(key)) return true;
+        const int value = _legacyPrefs.getInt(key, 0);
+        return _prefs.putInt(key, value) > 0 &&
+               _prefs.getInt(key, 0) == value;
+    };
+    auto copyUInt = [this](const char* key) {
+        if (!_legacyPrefs.isKey(key)) return true;
+        const uint32_t value = _legacyPrefs.getUInt(key, 0);
+        return _prefs.putUInt(key, value) > 0 &&
+               _prefs.getUInt(key, 0) == value;
+    };
+    auto copyBool = [this](const char* key) {
+        if (!_legacyPrefs.isKey(key)) return true;
+        const bool value = _legacyPrefs.getBool(key, false);
+        return _prefs.putBool(key, value) > 0 &&
+               _prefs.getBool(key, !value) == value;
+    };
+    auto copyVersion = [this]() {
+        if (!_legacyPrefs.isKey(KEY_SCHEMA_VERSION)) return true;
+        const uint16_t value = _legacyPrefs.getUShort(KEY_SCHEMA_VERSION, 0);
+        return _prefs.putUShort(KEY_SCHEMA_VERSION, value) > 0 &&
+               _prefs.getUShort(KEY_SCHEMA_VERSION, 0) == value;
+    };
+
+    const bool copied =
+        copyString(KEY_WIFI_SSID) && copyString(KEY_WIFI_PASS) &&
+        copyInt(KEY_VOLUME) && copyInt(KEY_MAX_VOLUME) &&
+        copyBool(KEY_BT_AUTO_RECONNECT) &&
+        copyUInt(KEY_BT_RECONNECT_DELAY) && copyVersion();
+    _legacyPrefs.end();
+    if (!copied) return false;
+
+    // Marker last: interrupted migration repeats the verified copy.
+    return _prefs.putBool(KEY_MIGRATION_COMPLETE, true) > 0;
+}
+
 
 bool ConfigManager::initializeSchemaV1() {
     if (!_prefs.isKey(KEY_MAX_VOLUME)) {
@@ -115,6 +189,10 @@ bool ConfigManager::migrateV1ToV2() {
         KEY_SCHEMA_VERSION,
         2
     ) > 0;
+}
+
+bool ConfigManager::migrateV3ToV4() {
+    return _prefs.putUShort(KEY_SCHEMA_VERSION, 4) > 0;
 }
 
 bool ConfigManager::migrateV2ToV3() {
@@ -175,6 +253,17 @@ bool ConfigManager::load() {
             static_cast<uint32_t>(0),
             static_cast<uint32_t>(60000)
         );
+
+    _config.features.bluetoothEnabled = _prefs.getBool(KEY_FEATURE_BT, true);
+    _config.features.radioEnabled = _prefs.getBool(KEY_FEATURE_RADIO, true);
+    _config.features.playMediaEnabled = _prefs.getBool(KEY_FEATURE_PLAY, true);
+    _config.features.displayEnabled = _prefs.getBool(KEY_FEATURE_DISPLAY, true);
+    _config.features.encoderEnabled = _prefs.getBool(KEY_FEATURE_ENCODER, true);
+    _config.features.buttonsEnabled = _prefs.getBool(KEY_FEATURE_BUTTONS, false);
+    _config.features.mqttEnabled = _prefs.getBool(KEY_FEATURE_MQTT, false);
+    _config.features.yoRadioWsEnabled = _prefs.getBool(KEY_FEATURE_YORADIO, true);
+    _config.features.haDiscoveryEnabled = _prefs.getBool(KEY_FEATURE_HA, true);
+
 
     return true;
 }

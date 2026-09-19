@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <Arduino.h>
 #include <Preferences.h>
@@ -32,9 +32,11 @@ public:
         return _config.bluetooth.reconnectDelayMs;
     }
     bool saveBluetoothReconnectDelayMs(uint32_t value);
+    const FeaturesConfig& features() const { return _config.features; }
 
 private:
     Preferences _prefs;
+    Preferences _legacyPrefs;
     RuntimeConfig _config;
 
     bool load();
@@ -42,5 +44,7 @@ private:
     bool initializeSchemaV1();
     bool migrateV1ToV2();
     bool migrateV2ToV3();
+    bool migrateV3ToV4();
+    bool migrateLegacyNamespace();
 };
 
