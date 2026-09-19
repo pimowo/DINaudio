@@ -6,7 +6,7 @@
 class AudioOutput {
 private:
     friend class AudioOutputManager;
-    bool begin();
+    bool begin(int bclk, int lrclk, int dout);
     bool end();
     bool ready() const { return _ready; }
     I2SClass& stream() { return _i2s; }

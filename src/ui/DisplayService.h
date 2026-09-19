@@ -1,18 +1,20 @@
-﻿#pragma once
+#pragma once
 
 #include <Arduino.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7789.h>
+#include "../config/ConfigModel.h"
 
 class DisplayService {
 public:
-    DisplayService();
+    explicit DisplayService(const St7789Pins& pins);
 
     void begin();
     void loop();
     void redraw();
 
 private:
+    St7789Pins _pins;
     Adafruit_ST7789 _tft;
 
     bool _layoutDrawn = false;

@@ -6,6 +6,7 @@
 #include "CommandQueue.h"
 #include "../diagnostics/Logger.h"
 #include <cstring>
+#include <new>
 
 #ifndef VOXONE_RADIO_TEST_CONTROLS
 #define VOXONE_RADIO_TEST_CONTROLS 1
@@ -70,7 +71,9 @@ bool App::begin() {
         String(_config.schemaVersion())
     );
 
-    const auto& features = _config.features();
+    const auto& runtime = _config.config();
+    const auto& features = runtime.features;
+    const auto defaultSource = _config.effectiveDefaultSource();
     Logger::info("BOOT", "VoxOne features:");
     Logger::info("BOOT", String("  Bluetooth: ") + (features.bluetoothEnabled ? "ON" : "OFF"));
     Logger::info("BOOT", String("  Radio: ") + (features.radioEnabled ? "ON" : "OFF"));
@@ -86,7 +89,15 @@ bool App::begin() {
         (features.yoRadioWsEnabled ? "ON" : "OFF") + " (runtime pending)");
     Logger::info("BOOT", String("  HA Discovery: configured ") +
         (features.haDiscoveryEnabled ? "ON" : "OFF") + " (runtime pending)");
-    Logger::info("BOOT", "Default source: STOP (runtime default_source not configured)");
+    const char* sourceName = defaultSource == DefaultSource::Bluetooth ? "BT" :
+        defaultSource == DefaultSource::Radio ? "RADIO" : "STOP";
+    Logger::info("BOOT", String("  Default source: ") + sourceName);
+    if (defaultSource != runtime.audio.defaultSource)
+        Logger::warn("BOOT", "Configured default source disabled; using STOP");
+    Logger::info("BOOT", String("  Audio output: ") +
+        (runtime.audio.outputType == OutputType::PCM5102A ? "PCM5102A" : "MAX98357A"));
+    Logger::info("BOOT", String("  Display type: ") +
+        (runtime.display.type == DisplayType::ST7789 ? "ST7789" : "SSD1306"));
 
     Logger::info(
         "BT",
@@ -114,17 +125,26 @@ bool App::begin() {
     StateStore::instance().update(s);
 
     if (features.encoderEnabled && Board::HAS_ENCODER) {
-        _encoder.begin();
+        _encoder.begin(runtime.encoder);
     }
     if (features.displayEnabled && Board::HAS_DISPLAY) {
-        _display.begin();
+        if (runtime.display.type == DisplayType::ST7789) {
+            _display.reset(new (std::nothrow) DisplayService(runtime.display.st7789));
+            if (_display) _display->begin();
+            else Logger::error("DISPLAY", "ST7789 allocation failed");
+        } else {
+            Logger::warn("DISPLAY", "SSD1306 not runtime implemented; display skipped");
+        }
     }
 
-    if (!_audioOutput.begin()) {
+    if (!_audioOutput.begin(runtime.audio.i2sBclk, runtime.audio.i2sLrclk, runtime.audio.i2sDout)) {
         Logger::error("AUDIO", "AudioOutputManager init failed");
         return false;
     }
-    if (features.bluetoothEnabled) {
+    if (runtime.audio.outputType == OutputType::MAX98357A)
+        Logger::warn("AUDIO", "MAX98357A not runtime implemented; audio sources skipped");
+    if (features.bluetoothEnabled && defaultSource == DefaultSource::Bluetooth &&
+        runtime.audio.outputType == OutputType::PCM5102A) {
         if (_audioOutput.acquire(AudioOutputOwner::Bluetooth)) {
             _bluetoothAvailable = _bluetooth.begin(
                 _audioOutput, makeBluetoothName(), s.volume
@@ -138,8 +158,12 @@ bool App::begin() {
         }
     }
 
+    if (features.bluetoothEnabled && defaultSource != DefaultSource::Bluetooth)
+        Logger::info("BT", "Enabled but not selected; A2DP startup deferred");
     _wifi.begin(_config);
     if (features.radioEnabled) {
+        if (defaultSource == DefaultSource::Radio || runtime.radio.autostart)
+            Logger::warn("RADIO", "Startup station selection pending; no stream started");
         _radioAvailable = _radio.begin(_audioOutput);
         if (_radioAvailable) _radio.setVolume(s.volume);
         else Logger::warn("RADIO", "Radio unavailable");
@@ -159,7 +183,8 @@ bool App::begin() {
 }
 
 bool App::startRadio(const char* url) {
-    if (!_radioAvailable || _radioSession || !url ||
+    if (_config.config().audio.outputType != OutputType::PCM5102A ||
+        !_radioAvailable || _radioSession || !url ||
         strncmp(url, "http://", 7) != 0 ||
         !StateStore::instance().snapshot().wifiConnected) return false;
     if (_bluetoothAvailable) {
@@ -561,8 +586,8 @@ void App::loop() {
     _time.loop();
     _web.loop();
 
-    if (_config.features().displayEnabled && Board::HAS_DISPLAY) {
-        _display.loop();
+    if (_display) {
+        _display->loop();
     }
 
     delay(0);

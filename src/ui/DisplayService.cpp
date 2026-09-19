@@ -1,4 +1,4 @@
-﻿#include "DisplayService.h"
+#include "DisplayService.h"
 
 #include "AppConfig.h"
 #include "BoardConfig.h"
@@ -33,15 +33,15 @@ static constexpr size_t HEADER_CHARS = 44;
 static constexpr size_t TITLE_CHARS = 26;
 }
 
-DisplayService::DisplayService()
-    : _tft(Board::TFT_CS, Board::TFT_DC, Board::TFT_RST) {}
+DisplayService::DisplayService(const St7789Pins& pins)
+    : _pins(pins), _tft(pins.cs, pins.dc, pins.rst) {}
 
 void DisplayService::begin() {
     SPI.begin(
-        Board::TFT_SCK,
+        _pins.sck,
         -1,
-        Board::TFT_MOSI,
-        Board::TFT_CS
+        _pins.mosi,
+        _pins.cs
     );
 
     _tft.init(Board::TFT_INIT_W, Board::TFT_INIT_H);

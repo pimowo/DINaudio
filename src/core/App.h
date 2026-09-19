@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 
 #include "StateStore.h"
 
@@ -22,7 +23,7 @@ public:
 private:
     ConfigManager _config;
     EncoderInput _encoder;
-    DisplayService _display;
+    std::unique_ptr<DisplayService> _display;
 
     AudioOutputManager _audioOutput;
     BluetoothService _bluetooth;

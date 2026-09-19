@@ -20,8 +20,11 @@ bool validOwner(AudioOutputOwner owner) {
 }
 }
 
-bool AudioOutputManager::begin() {
+bool AudioOutputManager::begin(int bclk, int lrclk, int dout) {
     // I2S is created only when a source successfully acquires the lease.
+    _bclk = bclk;
+    _lrclk = lrclk;
+    _dout = dout;
     _begun = true;
     return true;
 }
@@ -37,7 +40,7 @@ bool AudioOutputManager::acquire(AudioOutputOwner requested) {
             "; held by " + ownerName(_owner));
         return false;
     }
-    if (!_output.begin()) {
+    if (!_output.begin(_bclk, _lrclk, _dout)) {
         // ESP_I2S may retain a partially initialized channel on failure.
         // Do not let another source retry against uncertain driver state.
         _fault = true;

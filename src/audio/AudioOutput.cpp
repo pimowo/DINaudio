@@ -1,13 +1,12 @@
 #include "AudioOutput.h"
 
-#include "BoardConfig.h"
 #include "AppConfig.h"
 #include "../diagnostics/Logger.h"
 
-bool AudioOutput::begin() {
+bool AudioOutput::begin(int bclk, int lrclk, int dout) {
     if (_ready) return true;
 
-    _i2s.setPins(Board::I2S_BCLK, Board::I2S_LRC, Board::I2S_DOUT);
+    _i2s.setPins(bclk, lrclk, dout);
 
     if (!_i2s.begin(
             I2S_MODE_STD,
@@ -22,9 +21,9 @@ bool AudioOutput::begin() {
     _ready = true;
     Logger::info(
         "AUDIO",
-        String("I2S ready BCLK=") + Board::I2S_BCLK +
-        " WS=" + Board::I2S_LRC +
-        " DOUT=" + Board::I2S_DOUT +
+        String("I2S ready BCLK=") + bclk +
+        " WS=" + lrclk +
+        " DOUT=" + dout +
         " rate=" + AppConfig::AUDIO_SAMPLE_RATE
     );
     return true;

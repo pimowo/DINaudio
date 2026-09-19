@@ -17,7 +17,7 @@ public:
     AudioOutputManager(const AudioOutputManager&) = delete;
     AudioOutputManager& operator=(const AudioOutputManager&) = delete;
 
-    bool begin();
+    bool begin(int bclk, int lrclk, int dout);
     bool acquire(AudioOutputOwner owner);
     bool release(AudioOutputOwner owner);
     AudioOutputOwner owner() const { return _owner; }
@@ -40,4 +40,7 @@ private:
     bool _begun = false;
     bool _attached = false;
     bool _fault = false;
+    int _bclk = -1;
+    int _lrclk = -1;
+    int _dout = -1;
 };

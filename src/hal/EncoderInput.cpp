@@ -9,15 +9,16 @@ static const int8_t QUAD_TABLE[16] = {
      0, +1, -1,  0
 };
 
-void EncoderInput::begin() {
-    pinMode(Board::ENC_LEFT, Board::ENC_INTERNAL_PULLUP ? INPUT_PULLUP : INPUT);
-    pinMode(Board::ENC_RIGHT, Board::ENC_INTERNAL_PULLUP ? INPUT_PULLUP : INPUT);
-    pinMode(Board::ENC_BUTTON, Board::ENC_INTERNAL_PULLUP ? INPUT_PULLUP : INPUT);
+void EncoderInput::begin(const EncoderConfig& config) {
+    _config = config;
+    pinMode(_config.pinA, Board::ENC_INTERNAL_PULLUP ? INPUT_PULLUP : INPUT);
+    pinMode(_config.pinB, Board::ENC_INTERNAL_PULLUP ? INPUT_PULLUP : INPUT);
+    pinMode(_config.pinButton, Board::ENC_INTERNAL_PULLUP ? INPUT_PULLUP : INPUT);
 }
 
 void EncoderInput::loop() {
-    const uint8_t a = digitalRead(Board::ENC_LEFT) ? 1 : 0;
-    const uint8_t b = digitalRead(Board::ENC_RIGHT) ? 1 : 0;
+    const uint8_t a = digitalRead(_config.pinA) ? 1 : 0;
+    const uint8_t b = digitalRead(_config.pinB) ? 1 : 0;
 
     _history = ((_history << 2) | (a << 1) | b) & 0x0F;
     const int8_t move = QUAD_TABLE[_history];
@@ -30,19 +31,19 @@ void EncoderInput::loop() {
             CommandQueue::instance().push({
                 CommandType::VolumeDelta,
                 CommandSource::Encoder,
-                +1 * Board::ENC_DIRECTION
+                (_config.direction == EncoderDirection::Reversed ? -1 : 1) * _config.volumeStep
             });
         } else if (_accumulator <= -4) {
             _accumulator = 0;
             CommandQueue::instance().push({
                 CommandType::VolumeDelta,
                 CommandSource::Encoder,
-                -1 * Board::ENC_DIRECTION
+                (_config.direction == EncoderDirection::Reversed ? 1 : -1) * _config.volumeStep
             });
         }
     }
 
-    const bool raw = digitalRead(Board::ENC_BUTTON);
+    const bool raw = digitalRead(_config.pinButton);
     if (raw != _lastButtonRaw) {
         _lastButtonRaw = raw;
         _buttonChangedMs = millis();

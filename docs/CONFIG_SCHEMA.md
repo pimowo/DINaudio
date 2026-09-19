@@ -168,9 +168,13 @@ CONFIRMED/CURRENT: existing config/schema history, AudioOutputManager, BT
 ownership, minimal RadioService, ST7789 and logical volume 0..100.
 
 STORED/VALIDATED: schema 5 fields and active-module GPIO collision checks.
-RUNTIME WIRED: BT, Radio, ST7789, Encoder feature startup and legacy
-Wi-Fi/volume/BT reconnect fields. New pin, output type, source, display,
-encoder, MQTT, yoRadio and network details are stored only.
+RUNTIME WIRED: feature-gated BT, Radio, ST7789 and Encoder startup; legacy
+Wi-Fi/volume/BT reconnect fields; I2S and ST7789/encoder GPIO; encoder
+direction and volume step. Default source BT starts A2DP, while STOP leaves
+I2S idle. A RADIO default is recorded but cannot start a stream without a
+station list. MAX98357A and SSD1306 are skipped with warnings. Brightness,
+screensaver, encoder acceleration, MQTT, yoRadio and most network details
+remain stored only.
 PLANNED: SSD1306, MAX98357A, PlayMedia, dynamic WWW configuration and HA
 handoff. A full power-loss-atomic WWW snapshot transaction is not implemented.
 
