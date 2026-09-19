@@ -9,6 +9,49 @@
 
 BluetoothService* BluetoothService::_instance = nullptr;
 
+namespace {
+bool containsNonzeroSample(const uint8_t* data, uint32_t len) {
+    if (!data) return false;
+    const uint32_t inspected = len < 64 ? len : 64;
+    for (uint32_t i = 0; i < inspected; ++i) {
+        if (data[i] != 0) return true;
+    }
+    return false;
+}
+}
+
+void BluetoothService::onRawPcm(const uint8_t* data, uint32_t len) {
+    auto* service = _instance;
+    if (!service || !service->_acceptCallbacks.load(std::memory_order_relaxed)) return;
+    service->_rawPcmCallbacks.fetch_add(1, std::memory_order_relaxed);
+    service->_rawPcmBytes.fetch_add(len, std::memory_order_relaxed);
+    if (containsNonzeroSample(data, len))
+        service->_rawNonzeroCallbacks.fetch_add(1, std::memory_order_relaxed);
+}
+
+void BluetoothService::onPcm(const uint8_t* data, uint32_t len) {
+    auto* service = _instance;
+    if (!service || !service->_acceptCallbacks.load(std::memory_order_relaxed)) return;
+    service->_pcmCallbacks.fetch_add(1, std::memory_order_relaxed);
+    service->_pcmBytes.fetch_add(len, std::memory_order_relaxed);
+    if (containsNonzeroSample(data, len))
+        service->_pcmNonzeroCallbacks.fetch_add(1, std::memory_order_relaxed);
+}
+
+void BluetoothService::onSampleRate(uint16_t rate) {
+    auto* service = _instance;
+    if (service && service->_acceptCallbacks.load(std::memory_order_relaxed)) {
+        service->_outputGate.pauseWrites();
+        service->_pendingSampleRate.store(rate, std::memory_order_relaxed);
+    }
+}
+
+void BluetoothService::onAvrcPlayback(esp_avrc_playback_stat_t status) {
+    auto* service = _instance;
+    if (service && service->_acceptCallbacks.load(std::memory_order_relaxed))
+        service->_avrcPlayback.store(static_cast<int>(status), std::memory_order_relaxed);
+}
+
 uint8_t BluetoothService::mapVolume(int volume0to100) {
     const int v = constrain(volume0to100, 0, 100);
     return static_cast<uint8_t>((v * 127 + 50) / 100);
@@ -23,8 +66,20 @@ void BluetoothService::onRemoteVolume(int volume) {
     if (!_instance) return;
     portENTER_CRITICAL(&_instance->_peerMux);
     if (_instance->_acceptCallbacks.load()) {
-        _instance->_remoteVolume127 = constrain(volume, 0, 127);
-        _instance->_remoteVolumePending = true;
+        const uint8_t raw = constrain(volume, 0, 127);
+        const uint32_t now = millis();
+        bool localEcho = false;
+        for (uint8_t i = 0; i < _instance->_recentLocalCount; ++i) {
+            const auto& mark = _instance->_recentLocalVolume[i];
+            if (mark.raw == raw && now - mark.atMs <= 1500) {
+                localEcho = true;
+                break;
+            }
+        }
+        if (!localEcho) {
+            _instance->_remoteVolume127 = raw;
+            _instance->_remoteVolumePending = true;
+        }
     }
     portEXIT_CRITICAL(&_instance->_peerMux);
 }
@@ -64,8 +119,15 @@ void BluetoothService::onConnectionState(
     esp_a2d_connection_state_t state, void* context
 ) {
     auto* service = static_cast<BluetoothService*>(context);
-    if (!service ||
-        state != ESP_A2D_CONNECTION_STATE_CONNECTED) return;
+    if (!service || !service->_acceptCallbacks.load()) return;
+    if (state != ESP_A2D_CONNECTION_STATE_CONNECTED) {
+        service->_avrcPlayback.store(-1);
+        portENTER_CRITICAL(&service->_peerMux);
+        service->_recentLocalCount = 0;
+        portEXIT_CRITICAL(&service->_peerMux);
+        return;
+    }
+    service->_avrcPlayback.store(-1);
     // The library invokes this after updating peer_bd_addr.
     portENTER_CRITICAL(&service->_peerMux);
     if (!service->_acceptCallbacks.load()) {
@@ -147,7 +209,13 @@ bool BluetoothService::configureAndStart(bool resume) {
         return false;
     }
     if (resume) _sink.resetTransportForResume();
+    _outputStream = stream;
+    _configuredSampleRate = AppConfig::AUDIO_SAMPLE_RATE;
+    _pendingSampleRate.store(0);
+    _avrcPlayback.store(-1);
+    _lastAvrcPlayback = -1;
     _outputGate.open(*stream);
+    _outputGate.resumeWrites();
     _acceptCallbacks.store(true);
     // start must not auto-connect on resume: policy belongs to VoxOne.
     _sink.set_auto_reconnect(false);
@@ -156,6 +224,12 @@ bool BluetoothService::configureAndStart(bool resume) {
     // Audio state continues to be polled, as in 0.4.0.
     _sink.set_on_audio_state_changed(nullptr);
     _sink.set_on_audio_state_changed_post(nullptr);
+#ifdef VOXONE_DEBUG
+    _sink.set_raw_stream_reader(&BluetoothService::onRawPcm);
+    _sink.set_stream_reader(&BluetoothService::onPcm, true);
+#endif
+    _sink.set_sample_rate_callback(&BluetoothService::onSampleRate);
+    _sink.set_avrc_rn_playstatus_callback(&BluetoothService::onAvrcPlayback);
     // Initial sink uses the library's GENERAL_DISCOVERABLE default. On resume
     // the BT stack is already enabled and discovery can safely be restored.
     if (resume) _sink.set_discoverability(ESP_BT_GENERAL_DISCOVERABLE);
@@ -250,6 +324,9 @@ bool BluetoothService::finishSuspend() {
         return false;
     }
     _remoteVolumePending = _metadataPending = _peerNamePending = false;
+    _pendingSampleRate.store(0);
+    _avrcPlayback.store(-1);
+    _outputStream = nullptr;
     _lastConnectionState = ESP_A2D_CONNECTION_STATE_DISCONNECTED;
     _lastAudioState = ESP_A2D_AUDIO_STATE_STOPPED;
     if (!_outputManager->detach(AudioOutputOwner::Bluetooth) ||
@@ -298,18 +375,88 @@ bool BluetoothService::resumeAfterSourceSwitch() {
     return true;
 }
 
+void BluetoothService::applySampleRate() {
+    const uint16_t rate = _pendingSampleRate.exchange(0);
+    if (rate == 0) return;
+    if (rate == _configuredSampleRate) {
+        _outputGate.resumeWrites();
+        Logger::info("BT", "Negotiated PCM rate=" + String(rate) + " Hz");
+        return;
+    }
+    if (!_outputStream || !_outputGate.closeAndDrain(2000)) {
+        Logger::error("BT", "PCM rate change blocked: output did not drain");
+        return;
+    }
+    if (!_outputManager->configureStereo16(AudioOutputOwner::Bluetooth, rate)) {
+        Logger::error("BT", "PCM rate change failed; output remains closed");
+        return;
+    }
+    _configuredSampleRate = rate;
+    _outputGate.open(*_outputStream);
+    _outputGate.resumeWrites();
+    Logger::info("BT", "PCM rate applied=" + String(rate) + " Hz stereo 16-bit");
+}
+
+void BluetoothService::logAudioDiagnostics(uint32_t now) {
+#ifdef VOXONE_DEBUG
+    if (now - _lastDiagnosticsMs < 5000) return;
+    _lastDiagnosticsMs = now;
+    if (_sink.get_connection_state() != ESP_A2D_CONNECTION_STATE_CONNECTED) return;
+    Logger::debug(
+        "BT",
+        "PCM raw_callbacks=" + String(_rawPcmCallbacks.load()) +
+        " raw_bytes=" + String(_rawPcmBytes.load()) +
+        " raw_nonzero=" + String(_rawNonzeroCallbacks.load()) +
+        " callbacks=" + String(_pcmCallbacks.load()) +
+        " bytes=" + String(_pcmBytes.load()) +
+        " nonzero=" + String(_pcmNonzeroCallbacks.load()) +
+        " rate=" + String(_configuredSampleRate) +
+        " channels=" + String(_sink.channels()) +
+        " volume=" + String(StateStore::instance().snapshot().volume) +
+        " avrc_volume=" + String(_sink.get_volume())
+    );
+    Logger::debug(
+        "AUDIO",
+        "I2S writes=" + String(_outputGate.writes()) +
+        " bytes=" + String(_outputGate.writtenBytes()) +
+        " errors=" + String(_outputGate.writeErrors()) +
+        " dropped=" + String(_outputGate.droppedBytes())
+    );
+#else
+    (void)now;
+#endif
+}
+
 void BluetoothService::setVolume(int volume0to100) {
     _volume = constrain(volume0to100, 0, 100);
     if (!_started) return;
-    _sink.set_volume(mapVolume(volume0to100));
+    const uint8_t raw = mapVolume(_volume);
+    portENTER_CRITICAL(&_peerMux);
+    _recentLocalVolume[_recentLocalNext] = {raw, millis()};
+    _recentLocalNext = (_recentLocalNext + 1) % 16;
+    if (_recentLocalCount < 16) ++_recentLocalCount;
+    portEXIT_CRITICAL(&_peerMux);
+    _sink.set_volume(raw);
 }
 
 void BluetoothService::play() {
-    if (_started) _sink.play();
+    if (!_started) return;
+    if (!_sink.is_avrc_connected()) {
+        Logger::warn("BT", "AVRCP PLAY unavailable: controller not connected");
+        return;
+    }
+    Logger::info("BT", "AVRCP PLAY requested");
+    _sink.play();
 }
 
 void BluetoothService::pause() {
-    if (_started) _sink.pause();
+    if (!_started) return;
+    if (!_sink.is_avrc_connected()) {
+        Logger::warn("BT", "AVRCP PAUSE unavailable: controller not connected");
+        return;
+    }
+    Logger::info("BT", "AVRCP PAUSE requested");
+    _sink.pause();
 }
 
 void BluetoothService::stop() {
@@ -396,10 +543,11 @@ void BluetoothService::publishState(
         connectionState ==
         ESP_A2D_CONNECTION_STATE_CONNECTED;
 
+    const int avrcStatus = _avrcPlayback.load();
     const bool playing =
         connected &&
-        audioState ==
-        ESP_A2D_AUDIO_STATE_STARTED;
+        audioState == ESP_A2D_AUDIO_STATE_STARTED &&
+        (avrcStatus < 0 || avrcStatus == ESP_AVRC_PLAYBACK_PLAYING);
 
     auto s = StateStore::instance().snapshot();
 
@@ -415,22 +563,16 @@ void BluetoothService::publishState(
     s.bluetoothPlaying = playing;
 
     StateStore::instance().update(s);
-
-    Logger::info(
-        "BT",
-        String("connection=") +
-        _sink.to_str(connectionState) +
-        " audio=" +
-        _sink.to_str(audioState)
-    );
 }
 
 void BluetoothService::loop() {
     if (!_started) return;
 
     flushPendingEvents();
+    applySampleRate();
 
     const uint32_t now = millis();
+    logAudioDiagnostics(now);
 
     if (
         now - _lastPoll <
@@ -446,19 +588,25 @@ void BluetoothService::loop() {
 
     const auto audioState =
         _sink.get_audio_state();
+    const int avrcStatus = _avrcPlayback.load();
 
-    if (
-        connectionState == _lastConnectionState &&
-        audioState == _lastAudioState
-    ) {
-        return;
-    }
+    if (connectionState == _lastConnectionState &&
+        audioState == _lastAudioState &&
+        avrcStatus == _lastAvrcPlayback) return;
 
     _lastConnectionState = connectionState;
     _lastAudioState = audioState;
+    _lastAvrcPlayback = avrcStatus;
 
-    publishState(
-        connectionState,
-        audioState
+    publishState(connectionState, audioState);
+    const bool playing = connectionState == ESP_A2D_CONNECTION_STATE_CONNECTED &&
+        audioState == ESP_A2D_AUDIO_STATE_STARTED &&
+        (avrcStatus < 0 || avrcStatus == ESP_AVRC_PLAYBACK_PLAYING);
+    Logger::info(
+        "BT",
+        String("connection=") + _sink.to_str(connectionState) +
+        " audio=" + _sink.to_str(audioState) +
+        " playback=" + (playing ? "PLAY" : "PAUSE") +
+        " avrc=" + String(avrcStatus)
     );
 }

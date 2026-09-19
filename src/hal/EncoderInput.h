@@ -9,8 +9,14 @@ public:
 
 private:
     EncoderConfig _config;
-    uint8_t _history = 0;
-    int _accumulator = 0;
+    uint8_t _previousAB = 0;
+    uint8_t _detentAB = 3;
+    int8_t _transitionCount = 0;
+    int _pendingVolumeDelta = 0;
+    uint32_t _invalidTransitions = 0;
+    uint32_t _incompleteDetents = 0;
+    uint32_t _lastDecoderLogMs = 0;
+    uint32_t _lastQueueWarningMs = 0;
     bool _lastButtonRaw = HIGH;
     bool _stableButton = HIGH;
     uint32_t _buttonChangedMs = 0;

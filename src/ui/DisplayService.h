@@ -86,14 +86,9 @@ private:
 
     static int wifiLevel(int rssi);
 
-    static String tftText(
-        const String& value,
-        bool uppercase = true
-    );
-
-    static String fitText(
-        const String& value,
-        size_t maxChars
+    static int glyphAdvance(uint32_t codepoint, bool artistFont, uint8_t scale);
+    void drawUtf8Line(
+        const String& value, int x, int y, int maxWidth,
+        uint16_t color, uint16_t background, bool artistFont, uint8_t scale
     );
 };
-

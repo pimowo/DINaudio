@@ -11,19 +11,36 @@ public:
     size_t write(const uint8_t* data, size_t size) override {
         portENTER_CRITICAL(&_mux);
         Print* target = _target;
-        if (!_open || target == nullptr) {
+        if (_paused.load(std::memory_order_relaxed) || !_open || target == nullptr) {
             portEXIT_CRITICAL(&_mux);
+            _droppedBytes.fetch_add(size, std::memory_order_relaxed);
             // A2DP loops until all input is consumed; returning zero hangs it.
             return size;
         }
         ++_inFlight;
         portEXIT_CRITICAL(&_mux);
         const size_t written = target->write(data, size);
+        _writes.fetch_add(1, std::memory_order_relaxed);
+        _writtenBytes.fetch_add(written, std::memory_order_relaxed);
+        if (written != size) {
+            _writeErrors.fetch_add(1, std::memory_order_relaxed);
+            _droppedBytes.fetch_add(size - written, std::memory_order_relaxed);
+        }
         portENTER_CRITICAL(&_mux);
+        if (written != size) _open = false;
         --_inFlight;
         portEXIT_CRITICAL(&_mux);
-        return written;
+        // Never let the library spin forever on a short I2S write.
+        return size;
     }
+
+    uint32_t writes() const { return _writes.load(std::memory_order_relaxed); }
+    uint32_t writtenBytes() const { return _writtenBytes.load(std::memory_order_relaxed); }
+    uint32_t writeErrors() const { return _writeErrors.load(std::memory_order_relaxed); }
+    uint32_t droppedBytes() const { return _droppedBytes.load(std::memory_order_relaxed); }
+
+    void pauseWrites() { _paused.store(true, std::memory_order_relaxed); }
+    void resumeWrites() { _paused.store(false, std::memory_order_relaxed); }
 
     void open(Print& target) {
         portENTER_CRITICAL(&_mux);
@@ -53,6 +70,11 @@ private:
     Print* _target = nullptr;
     uint32_t _inFlight = 0;
     bool _open = false;
+    std::atomic<bool> _paused{false};
+    std::atomic<uint32_t> _writes{0};
+    std::atomic<uint32_t> _writtenBytes{0};
+    std::atomic<uint32_t> _writeErrors{0};
+    std::atomic<uint32_t> _droppedBytes{0};
 };
 
 // Observe raw IDF events before the library queues them. Its end(false)

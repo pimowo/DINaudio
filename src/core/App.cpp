@@ -7,6 +7,7 @@
 #include "../diagnostics/Logger.h"
 #include <cstring>
 #include <new>
+#include <esp_system.h>
 
 #ifndef VOXONE_RADIO_TEST_CONTROLS
 #define VOXONE_RADIO_TEST_CONTROLS 1
@@ -36,6 +37,7 @@ String App::makeBluetoothName() const {
 
 bool App::begin() {
     Logger::begin(AppConfig::SERIAL_BAUD);
+    Logger::info("BOOT", "Reset reason=" + String(static_cast<int>(esp_reset_reason())));
 
     Logger::info(
         "BOOT",
@@ -443,9 +445,11 @@ void App::updateBluetoothOwnership() {
 void App::processCommands() {
     Command cmd;
 
-    while (
-        CommandQueue::instance().pop(cmd)
-    ) {
+    // A bounded drain keeps Wi-Fi, display and Bluetooth polling responsive
+    // even when another task keeps adding commands.
+    for (int processed = 0;
+         processed < 16 && CommandQueue::instance().pop(cmd);
+         ++processed) {
         if (cmd.source == CommandSource::Bluetooth &&
             !_bluetoothAvailable) {
             Logger::warn("BT", "Command ignored: Bluetooth disabled");
@@ -507,6 +511,8 @@ void App::processCommands() {
                     } else {
                         _bluetooth.play();
                     }
+                } else {
+                    Logger::warn("BT", "PLAY/PAUSE ignored: transport not connected");
                 }
                 break;
 
@@ -589,6 +595,10 @@ void App::loop() {
 
     if (_display) {
         _display->loop();
+    }
+    // Take a second cheap AB sample after network/display work.
+    if (_config.features().encoderEnabled && Board::HAS_ENCODER) {
+        _encoder.loop();
     }
 
     delay(0);

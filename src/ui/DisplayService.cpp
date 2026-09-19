@@ -1,4 +1,5 @@
 #include "DisplayService.h"
+#include "PolishGlyphs.h"
 
 #include "AppConfig.h"
 #include "BoardConfig.h"
@@ -34,7 +35,6 @@ static constexpr int INFO1_Y = 60;
 static constexpr int METADATA_W = 174;
 static constexpr int STATUS_W = 112;
 
-static constexpr int WIFI_X = 234;
 static constexpr int WIFI_Y = 63;
 static constexpr uint32_t WIFI_DRAW_INTERVAL_MS = 15000;
 
@@ -50,8 +50,6 @@ static constexpr uint8_t SPEAKER_GLYPH[] = {0x00, 0x00, 0x18, 0x3C, 0x7E};
 
 static constexpr int LEFT_X = 2;
 
-static constexpr size_t HEADER_CHARS = 44;
-static constexpr size_t TITLE_CHARS = 26;
 }
 
 DisplayService::DisplayService(const St7789Pins& pins)
@@ -99,75 +97,67 @@ void DisplayService::drawStaticLayout() {
     _layoutDrawn = true;
 }
 
-String DisplayService::tftText(
-    const String& value,
-    bool uppercase
+int DisplayService::glyphAdvance(uint32_t codepoint, bool artistFont, uint8_t scale) {
+    if (codepoint >= 32 && codepoint <= 126) {
+        if (artistFont) {
+            return pgm_read_byte(&FreeSans9pt7bGlyphs[codepoint - 32].xAdvance);
+        }
+        return 6 * scale;
+    }
+    return 6 * (artistFont ? 2 : scale); // Local PL glyph or one visible fallback marker.
+}
+
+void DisplayService::drawUtf8Line(
+    const String& value, int x, int y, int maxWidth,
+    uint16_t color, uint16_t background, bool artistFont, uint8_t scale
 ) {
-    String out;
-    out.reserve(value.length());
+    _tft.setFont(artistFont ? &FreeSans9pt7b : nullptr);
+    _tft.setTextSize(artistFont ? 1 : scale);
+    _tft.setTextColor(color, background);
 
-    const uint8_t* p =
-        reinterpret_cast<const uint8_t*>(value.c_str());
+    const char* cursor = value.c_str();
+    int fullWidth = 0;
+    while (*cursor) {
+        const uint32_t codepoint = PolishGlyphs::next(cursor);
+        fullWidth += glyphAdvance(codepoint, artistFont, scale);
+    }
+    const bool clipped = fullWidth > maxWidth;
+    const int textLimit = clipped ? maxWidth - glyphAdvance('.', artistFont, scale) * 3 : maxWidth;
+    cursor = value.c_str();
+    int drawnWidth = 0;
+    while (*cursor) {
+        const uint32_t codepoint = PolishGlyphs::next(cursor);
+        const int advance = glyphAdvance(codepoint, artistFont, scale);
+        if (drawnWidth + advance > textLimit) break;
 
-    while (*p) {
-        if (p[0] == 0xC4 && p[1]) {
-            switch (p[1]) {
-                case 0x84: case 0x85: out += 'A'; p += 2; continue;
-                case 0x86: case 0x87: out += 'C'; p += 2; continue;
-                case 0x98: case 0x99: out += 'E'; p += 2; continue;
-                default: break;
+        const PolishGlyphs::Glyph* glyph = PolishGlyphs::find(codepoint);
+        if (glyph) {
+            const int top = artistFont ? y - 15 : y;
+            const uint8_t glyphScale = artistFont ? 2 : scale;
+            for (uint8_t row = 0; row < 8; ++row) {
+                for (uint8_t col = 0; col < 5; ++col) {
+                    if (glyph->rows[row] & (1 << (4 - col))) {
+                        _tft.fillRect(x + drawnWidth + col * glyphScale,
+                                      top + row * glyphScale,
+                                      glyphScale, glyphScale, color);
+                    }
+                }
             }
-        }
-
-        if (p[0] == 0xC5 && p[1]) {
-            switch (p[1]) {
-                case 0x81: case 0x82: out += 'L'; p += 2; continue;
-                case 0x83: case 0x84: out += 'N'; p += 2; continue;
-                case 0x9A: case 0x9B: out += 'S'; p += 2; continue;
-                case 0xB9: case 0xBA: out += 'Z'; p += 2; continue;
-                case 0xBB: case 0xBC: out += 'Z'; p += 2; continue;
-                default: break;
-            }
-        }
-
-        if (p[0] == 0xC3 && p[1]) {
-            switch (p[1]) {
-                case 0x93: case 0xB3: out += 'O'; p += 2; continue;
-                default: break;
-            }
-        }
-
-        if (*p >= 32 && *p <= 126) {
-            out += static_cast<char>(*p);
+            _tft.setCursor(x + drawnWidth + advance, y);
         } else {
-            out += '?';
+            // Unsupported codepoints remain intact in the source String.
+            // A single '?' marks each glyph unavailable in these small fonts.
+            _tft.setCursor(x + drawnWidth, y);
+            _tft.write(codepoint >= 32 && codepoint <= 126
+                ? static_cast<uint8_t>(codepoint) : static_cast<uint8_t>('?'));
         }
-
-        ++p;
+        drawnWidth += advance;
     }
-
-    if (uppercase) {
-        out.toUpperCase();
+    if (clipped) {
+        _tft.setCursor(x + drawnWidth, y);
+        _tft.print("...");
     }
-
-    return out;
 }
-
-String DisplayService::fitText(
-    const String& value,
-    size_t maxChars
-) {
-    if (value.length() <= maxChars) {
-        return value;
-    }
-
-    if (maxChars <= 3) {
-        return value.substring(0, maxChars);
-    }
-
-    return value.substring(0, maxChars - 3) + "...";
-}
-
 int DisplayService::wifiLevel(int rssi) {
     if (rssi >= -55) return 4;
     if (rssi >= -67) return 3;
@@ -199,18 +189,11 @@ void DisplayService::drawHeader(
             ? String("BLUETOOTH")
             : peerName;
     } else {
-        label = "VoxOne";
+        label = "Vox One";
     }
 
-    label = fitText(
-        tftText(label),
-        HEADER_CHARS
-    );
-
-    _tft.setTextColor(kColorPrimaryText, stationFill);
-    _tft.setTextSize(2);
-    _tft.setCursor(3, 2);
-    _tft.print(label);
+    drawUtf8Line(label, 3, 2, _tft.width() - 3,
+                 kColorPrimaryText, stationFill, false, 2);
 }
 
 void DisplayService::drawMetadata(
@@ -231,33 +214,12 @@ void DisplayService::drawMetadata(
         return;
     }
 
-    String artistLine = fitText(
-        tftText(artist),
-        TITLE_CHARS
-    );
-
-    String titleLine = fitText(
-        tftText(title),
-        TITLE_CHARS
-    );
-
-    _tft.setFont(&FreeSans9pt7b);
-    String artistText = artistLine.isEmpty() ? String("-") : artistLine;
-    int16_t x1, y1;
-    uint16_t w, h;
-    _tft.getTextBounds(artistText, 0, ARTIST_BASELINE_Y, &x1, &y1, &w, &h);
-    while (artistText.length() > 1 && static_cast<int>(w) > METADATA_W - LEFT_X) {
-        artistText.remove(artistText.length() - 1);
-        _tft.getTextBounds(artistText, 0, ARTIST_BASELINE_Y, &x1, &y1, &w, &h);
-    }
-    _tft.setTextColor(kColorSecondaryText);
-    _tft.setCursor(LEFT_X, ARTIST_BASELINE_Y);
-    _tft.print(artistText);
-
-    _tft.setFont();
-    _tft.setTextColor(kColorSonyBlue, kColorBackground);
-    _tft.setCursor(LEFT_X, TITLE2_Y);
-    _tft.print(titleLine.isEmpty() ? "-" : titleLine);
+    drawUtf8Line(artist.isEmpty() ? String("-") : artist,
+                 LEFT_X, ARTIST_BASELINE_Y, METADATA_W - LEFT_X,
+                 kColorSecondaryText, kColorBackground, true, 1);
+    drawUtf8Line(title.isEmpty() ? String("-") : title,
+                 LEFT_X, TITLE2_Y, METADATA_W - LEFT_X,
+                 kColorSonyBlue, kColorBackground, false, 1);
 }
 
 void DisplayService::drawSourceInfo(
@@ -301,42 +263,56 @@ void DisplayService::drawWifiIndicator(
     int wifiRssi,
     bool apMode
 ) {
-    _tft.fillRect(
-        WIFI_X,
-        WIFI_Y,
-        50,
-        13,
-        kColorBackground
-    );
+    // Center the complete visible indicator under the clock text, not merely
+    // the background rectangle. Keep WIFI_Y and the bar heights unchanged.
+    _tft.setFont();
+    int16_t x1, y1;
+    uint16_t clockWidth, textHeight;
+    _tft.setTextSize(2);
+    _tft.getTextBounds("--:--", 0, 0, &x1, &y1, &clockWidth, &textHeight);
+    const int clockCenterX = CLOCK_X + static_cast<int>(clockWidth) / 2;
 
     _tft.setTextSize(1);
-    _tft.setCursor(WIFI_X, WIFI_Y);
+    const char* label = wifiConnected ? "WIFI" : (apMode ? "AP" : "WIFI --");
+    uint16_t labelWidth;
+    _tft.getTextBounds(label, 0, 0, &x1, &y1, &labelWidth, &textHeight);
+    constexpr int barCount = 4;
+    constexpr int barStride = 6;
+    constexpr int barWidth = 4;
+    constexpr int labelGap = 2;
+    const int barsWidth = (barCount - 1) * barStride + barWidth;
+    const int visibleWidth = static_cast<int>(labelWidth) +
+        (wifiConnected ? labelGap + barsWidth : 0);
+    const int labelX = clockCenterX - visibleWidth / 2;
+
+    _tft.fillRect(CLOCK_X, WIFI_Y, CLOCK_W, 13, kColorBackground);
+    _tft.setCursor(labelX, WIFI_Y);
 
     if (!wifiConnected) {
         _tft.setTextColor(
             apMode ? kColorSonyBlue : kColorInactive,
             kColorBackground
         );
-        _tft.print(apMode ? "AP" : "WIFI --");
+        _tft.print(label);
         return;
     }
 
     _tft.setTextColor(kColorSecondaryText, kColorBackground);
-    _tft.print("WIFI");
+    _tft.print(label);
 
     const int level = wifiLevel(wifiRssi);
-    const int baseX = WIFI_X + 26;
+    const int baseX = labelX + static_cast<int>(labelWidth) + labelGap;
     const int baseY = WIFI_Y + 10;
 
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < barCount; ++i) {
         const int h = 2 + i * 2;
         const uint16_t color =
             i < level ? kColorSonyBlue : kColorInactive;
 
         _tft.fillRect(
-            baseX + i * 6,
+            baseX + i * barStride,
             baseY - h,
-            4,
+            barWidth,
             h,
             color
         );
@@ -395,7 +371,7 @@ void DisplayService::drawVolumeIndicator(int volume) {
     }
 
     _tft.setTextColor(kColorPrimaryText, kColorBackground);
-    _tft.setCursor(startX + iconWidth + 6, VOLUME_Y);
+    _tft.setCursor(startX + iconWidth + 6, VOLUME_Y + 2);
     _tft.print(value);
 }
 
