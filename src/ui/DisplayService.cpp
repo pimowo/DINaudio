@@ -3,6 +3,7 @@
 #include "AppConfig.h"
 #include "BoardConfig.h"
 #include "../core/StateStore.h"
+#include <Fonts/FreeSans9pt7b.h>
 
 namespace {
 constexpr uint16_t rgb565(uint8_t red, uint8_t green, uint8_t blue) {
@@ -13,38 +14,39 @@ constexpr uint16_t rgb565(uint8_t red, uint8_t green, uint8_t blue) {
     );
 }
 
-static constexpr uint16_t kColorBackground = rgb565(0, 0, 0);
-static constexpr uint16_t kColorStationName = rgb565(4, 122, 255);
-static constexpr uint16_t kColorStationFill = rgb565(4, 122, 255);
-static constexpr uint16_t kColorTitle = rgb565(255, 255, 255);
-static constexpr uint16_t kColorMuted = rgb565(165, 162, 132);
-static constexpr uint16_t kColorClock = rgb565(255, 255, 255);
-static constexpr uint16_t kColorClockBackground = rgb565(28, 28, 28);
-static constexpr uint16_t kColorVolumeBar = rgb565(231, 211, 90);
-static constexpr uint16_t kColorVolumeValue = rgb565(165, 162, 132);
-static constexpr uint16_t kColorRssi = rgb565(165, 162, 132);
-static constexpr uint16_t kColorDivider = rgb565(165, 162, 132);
-static constexpr uint16_t kColorPlaying = rgb565(44, 212, 32);
-
+static constexpr uint16_t kColorBlack = rgb565(0, 0, 0);
+static constexpr uint16_t kColorBackground = rgb565(6, 8, 12);
+static constexpr uint16_t kColorSurface = rgb565(18, 22, 28);
+static constexpr uint16_t kColorPrimaryText = rgb565(245, 245, 245);
+static constexpr uint16_t kColorSonyBlue = rgb565(120, 170, 255);
+static constexpr uint16_t kColorSonyBlueDark = rgb565(90, 140, 230);
+static constexpr uint16_t kColorSecondaryText = rgb565(180, 200, 220);
+static constexpr uint16_t kColorInfo = rgb565(80, 160, 220);
+static constexpr uint16_t kColorNeutral = rgb565(200, 200, 200);
+static constexpr uint16_t kColorDivider = rgb565(40, 90, 160);
+static constexpr uint16_t kColorInactive = rgb565(40, 50, 65);
+static constexpr uint16_t kColorSoftBlue = rgb565(180, 200, 255);
 static constexpr int DSP_WIDTH = 284;
 static constexpr int HEADER_H = 19;
-static constexpr int TITLE1_Y = 21;
-static constexpr int TITLE2_Y = 30;
-static constexpr int INFO1_Y = 43;
+static constexpr int ARTIST_BASELINE_Y = 35;
+static constexpr int TITLE2_Y = 40;
+static constexpr int INFO1_Y = 60;
+static constexpr int METADATA_W = 174;
+static constexpr int STATUS_W = 112;
 
-static constexpr int WIFI_X = 2;
-static constexpr int WIFI_Y = 55;
+static constexpr int WIFI_X = 234;
+static constexpr int WIFI_Y = 63;
 static constexpr uint32_t WIFI_DRAW_INTERVAL_MS = 15000;
 
 static constexpr int CLOCK_X = 218;
-static constexpr int CLOCK_Y = 45;
+static constexpr int CLOCK_Y = 42;
 static constexpr int CLOCK_W = 64;
 static constexpr int CLOCK_H = 18;
 
-static constexpr int VOLBAR_X = 2;
-static constexpr int VOLBAR_Y = 72;
-static constexpr int VOLBAR_W = 280;
-static constexpr int VOLBAR_H = 3;
+static constexpr int VOLUME_Y = 60;
+static constexpr int SPEAKER_SCALE = 2;
+// yoRadio yofont5x7.c, glyph 0x13 (speaker), five 7-bit columns.
+static constexpr uint8_t SPEAKER_GLYPH[] = {0x00, 0x00, 0x18, 0x3C, 0x7E};
 
 static constexpr int LEFT_X = 2;
 
@@ -77,7 +79,7 @@ void DisplayService::drawStaticLayout() {
     _tft.fillScreen(kColorBackground);
 
     const uint16_t stationFill =
-        kColorStationFill;
+        kColorSurface;
 
     _tft.fillRect(
         0,
@@ -92,14 +94,6 @@ void DisplayService::drawStaticLayout() {
         HEADER_H,
         _tft.width(),
         stationFill
-    );
-
-    _tft.drawRect(
-        VOLBAR_X,
-        VOLBAR_Y,
-        VOLBAR_W,
-        VOLBAR_H + 1,
-        kColorDivider
     );
 
     _layoutDrawn = true;
@@ -188,7 +182,7 @@ void DisplayService::drawHeader(
     const String& peerName
 ) {
     const uint16_t stationFill =
-        kColorStationFill;
+        kColorSurface;
 
     _tft.fillRect(
         0,
@@ -213,7 +207,7 @@ void DisplayService::drawHeader(
         HEADER_CHARS
     );
 
-    _tft.setTextColor(kColorBackground, stationFill);
+    _tft.setTextColor(kColorPrimaryText, stationFill);
     _tft.setTextSize(2);
     _tft.setCursor(3, 2);
     _tft.print(label);
@@ -225,19 +219,14 @@ void DisplayService::drawMetadata(
     const String& artist,
     const String& title
 ) {
-    _tft.fillRect(
-        0,
-        TITLE1_Y,
-        174,
-        20,
-        kColorBackground
-    );
+    _tft.fillRect(0, HEADER_H + 1, METADATA_W, 29, kColorBackground);
 
+    _tft.setFont();
     _tft.setTextSize(1);
 
     if (!btConnected && !reconnectGrace) {
-        _tft.setTextColor(kColorStationName, kColorBackground);
-        _tft.setCursor(LEFT_X, TITLE1_Y);
+        _tft.setTextColor(kColorInactive, kColorBackground);
+        _tft.setCursor(LEFT_X, HEADER_H + 2);
         _tft.print("STOP");
         return;
     }
@@ -252,11 +241,21 @@ void DisplayService::drawMetadata(
         TITLE_CHARS
     );
 
-    _tft.setTextColor(kColorMuted, kColorBackground);
-    _tft.setCursor(LEFT_X, TITLE1_Y);
-    _tft.print(artistLine.isEmpty() ? "-" : artistLine);
+    _tft.setFont(&FreeSans9pt7b);
+    String artistText = artistLine.isEmpty() ? String("-") : artistLine;
+    int16_t x1, y1;
+    uint16_t w, h;
+    _tft.getTextBounds(artistText, 0, ARTIST_BASELINE_Y, &x1, &y1, &w, &h);
+    while (artistText.length() > 1 && static_cast<int>(w) > METADATA_W - LEFT_X) {
+        artistText.remove(artistText.length() - 1);
+        _tft.getTextBounds(artistText, 0, ARTIST_BASELINE_Y, &x1, &y1, &w, &h);
+    }
+    _tft.setTextColor(kColorSecondaryText);
+    _tft.setCursor(LEFT_X, ARTIST_BASELINE_Y);
+    _tft.print(artistText);
 
-    _tft.setTextColor(kColorTitle, kColorBackground);
+    _tft.setFont();
+    _tft.setTextColor(kColorSonyBlue, kColorBackground);
     _tft.setCursor(LEFT_X, TITLE2_Y);
     _tft.print(titleLine.isEmpty() ? "-" : titleLine);
 }
@@ -269,30 +268,31 @@ void DisplayService::drawSourceInfo(
     _tft.fillRect(
         0,
         INFO1_Y,
-        174,
+        STATUS_W,
         10,
         kColorBackground
     );
 
+    _tft.setFont();
     _tft.setTextSize(1);
     _tft.setCursor(LEFT_X, INFO1_Y);
 
     if (reconnectGrace) {
-        _tft.setTextColor(kColorVolumeBar, kColorBackground);
+        _tft.setTextColor(kColorSonyBlueDark, kColorBackground);
         _tft.print("BT A2DP  RECONNECT");
     } else if (btConnected) {
-        _tft.setTextColor(kColorStationName, kColorBackground);
+        _tft.setTextColor(kColorInactive, kColorBackground);
         _tft.print("BT A2DP");
 
         _tft.setTextColor(
-            btPlaying ? kColorPlaying : kColorVolumeBar,
+            btPlaying ? kColorPrimaryText : kColorSonyBlueDark,
             kColorBackground
         );
 
         _tft.print(btPlaying ? "  PLAY" : "  PAUSE");
     } else {
-        _tft.setTextColor(kColorVolumeBar, kColorBackground);
-        _tft.print("SOURCE: STOP");
+        _tft.setTextColor(kColorSonyBlue, kColorBackground);
+        _tft.print("STOP");
     }
 }
 
@@ -304,8 +304,8 @@ void DisplayService::drawWifiIndicator(
     _tft.fillRect(
         WIFI_X,
         WIFI_Y,
-        78,
-        14,
+        50,
+        13,
         kColorBackground
     );
 
@@ -314,24 +314,24 @@ void DisplayService::drawWifiIndicator(
 
     if (!wifiConnected) {
         _tft.setTextColor(
-            apMode ? kColorVolumeBar : kColorDivider,
+            apMode ? kColorSonyBlue : kColorInactive,
             kColorBackground
         );
         _tft.print(apMode ? "AP" : "WIFI --");
         return;
     }
 
-    _tft.setTextColor(kColorMuted, kColorBackground);
+    _tft.setTextColor(kColorSecondaryText, kColorBackground);
     _tft.print("WIFI");
 
     const int level = wifiLevel(wifiRssi);
-    const int baseX = 31;
-    const int baseY = WIFI_Y + 9;
+    const int baseX = WIFI_X + 26;
+    const int baseY = WIFI_Y + 10;
 
     for (int i = 0; i < 4; ++i) {
         const int h = 2 + i * 2;
         const uint16_t color =
-            i < level ? kColorPlaying : kColorDivider;
+            i < level ? kColorSonyBlue : kColorInactive;
 
         _tft.fillRect(
             baseX + i * 6,
@@ -352,52 +352,51 @@ void DisplayService::drawClock(
         CLOCK_Y,
         CLOCK_W,
         CLOCK_H,
-        kColorClockBackground
+        kColorBackground
     );
 
     _tft.setTextSize(2);
     _tft.setCursor(CLOCK_X, CLOCK_Y);
 
     if (valid && !clockText.isEmpty()) {
-        _tft.setTextColor(kColorClock, kColorClockBackground);
+        _tft.setTextColor(kColorPrimaryText, kColorBackground);
         _tft.print(clockText);
     } else {
-        _tft.setTextColor(kColorRssi, kColorClockBackground);
+        _tft.setTextColor(kColorNeutral, kColorBackground);
         _tft.print("--:--");
     }
 }
 
-void DisplayService::drawVolumeBar(int volume) {
-    const int safeVolume = constrain(volume, 0, 100);
-    const int innerW = VOLBAR_W - 2;
-    const int filled =
-        map(safeVolume, 0, 100, 0, innerW);
+void DisplayService::drawVolumeIndicator(int volume) {
+    _tft.fillRect(116, 55, 52, 19, kColorBackground);
+    _tft.setFont();
+    _tft.setTextSize(1);
 
-    _tft.fillRect(
-        VOLBAR_X + 1,
-        VOLBAR_Y + 1,
-        innerW,
-        VOLBAR_H - 1,
-        kColorBackground
-    );
+    char value[4];
+    snprintf(value, sizeof(value), "%d", constrain(volume, 0, 100));
+    int16_t x1, y1;
+    uint16_t w, h;
+    _tft.getTextBounds(value, 0, VOLUME_Y, &x1, &y1, &w, &h);
 
-    if (filled > 0) {
-        _tft.fillRect(
-            VOLBAR_X + 1,
-            VOLBAR_Y + 1,
-            filled,
-            VOLBAR_H - 1,
-            kColorVolumeBar
-        );
+    const int iconWidth = 5 * SPEAKER_SCALE;
+    const int startX = (DSP_WIDTH - (iconWidth + 6 + static_cast<int>(w))) / 2;
+    for (int column = 0; column < 5; ++column) {
+        for (int row = 0; row < 7; ++row) {
+            if (SPEAKER_GLYPH[column] & (1 << row)) {
+                _tft.fillRect(
+                    startX + column * SPEAKER_SCALE,
+                    57 + row * SPEAKER_SCALE,
+                    SPEAKER_SCALE,
+                    SPEAKER_SCALE,
+                    kColorSonyBlue
+                );
+            }
+        }
     }
 
-    _tft.drawRect(
-        VOLBAR_X,
-        VOLBAR_Y,
-        VOLBAR_W,
-        VOLBAR_H + 1,
-        kColorDivider
-    );
+    _tft.setTextColor(kColorPrimaryText, kColorBackground);
+    _tft.setCursor(startX + iconWidth + 6, VOLUME_Y);
+    _tft.print(value);
 }
 
 void DisplayService::drawVolumeValue(int volume) {
@@ -417,7 +416,7 @@ void DisplayService::drawVolumeValue(int volume) {
         constrain(volume, 0, 100)
     );
 
-    _tft.setTextColor(kColorVolumeValue, kColorBackground);
+    _tft.setTextColor(kColorSonyBlue, kColorBackground);
     _tft.setTextSize(3);
 
     int16_t x1, y1;
@@ -451,7 +450,7 @@ void DisplayService::drawVolumeIp(const String& ip) {
     );
 
     _tft.setTextSize(1);
-    _tft.setTextColor(kColorMuted, kColorBackground);
+    _tft.setTextColor(kColorSecondaryText, kColorBackground);
     _tft.setCursor(3, 62);
 
     if (ip.isEmpty()) {
@@ -473,7 +472,7 @@ void DisplayService::showVolumeScreen(
     _tft.fillScreen(kColorBackground);
 
     const uint16_t stationFill =
-        kColorStationFill;
+        kColorSurface;
 
     _tft.fillRect(
         0,
@@ -485,7 +484,7 @@ void DisplayService::showVolumeScreen(
 
     const char* label = "GLOSNOSC";
 
-    _tft.setTextColor(kColorBackground, stationFill);
+    _tft.setTextColor(kColorPrimaryText, stationFill);
     _tft.setTextSize(2);
 
     int16_t x1, y1;
@@ -602,7 +601,7 @@ void DisplayService::updatePlayerFields(bool force) {
     }
 
     if (force || s.volume != _lastVolume) {
-        drawVolumeBar(s.volume);
+        drawVolumeIndicator(s.volume);
         _lastVolume = s.volume;
     }
 
@@ -655,7 +654,7 @@ void DisplayService::loop() {
 
 bool DisplayService::clearToBlack() {
     if (!_initialized) return false;
-    _tft.fillScreen(kColorBackground);
+    _tft.fillScreen(kColorBlack);
     _layoutDrawn = false;
     _visualDisabled = true;
     _volumeScreenActive = false;

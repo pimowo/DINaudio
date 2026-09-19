@@ -74,7 +74,7 @@ private:
         const String& clockText
     );
 
-    void drawVolumeBar(int volume);
+    void drawVolumeIndicator(int volume);
 
     void showVolumeScreen(
         int volume,
