@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "StateStore.h"
 
@@ -27,6 +27,9 @@ private:
     AudioOutputManager _audioOutput;
     BluetoothService _bluetooth;
     RadioService _radio;
+    bool _bluetoothAvailable = false;
+    bool _radioAvailable = false;
+    bool _btSuspendedForRadio = false;
     bool _radioSession = false;
     char _radioCommand[24] = {0};
     uint8_t _radioCommandLength = 0;

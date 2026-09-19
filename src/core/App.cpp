@@ -70,6 +70,24 @@ bool App::begin() {
         String(_config.schemaVersion())
     );
 
+    const auto& features = _config.features();
+    Logger::info("BOOT", "VoxOne features:");
+    Logger::info("BOOT", String("  Bluetooth: ") + (features.bluetoothEnabled ? "ON" : "OFF"));
+    Logger::info("BOOT", String("  Radio: ") + (features.radioEnabled ? "ON" : "OFF"));
+    Logger::info("BOOT", String("  Display: ") + (features.displayEnabled ? "ON" : "OFF"));
+    Logger::info("BOOT", String("  Encoder: ") + (features.encoderEnabled ? "ON" : "OFF"));
+    Logger::info("BOOT", String("  PlayMedia: configured ") +
+        (features.playMediaEnabled ? "ON" : "OFF") + " (runtime pending)");
+    Logger::info("BOOT", String("  Buttons: configured ") +
+        (features.buttonsEnabled ? "ON" : "OFF") + " (runtime pending)");
+    Logger::info("BOOT", String("  MQTT: configured ") +
+        (features.mqttEnabled ? "ON" : "OFF") + " (runtime pending)");
+    Logger::info("BOOT", String("  yoRadio WS: configured ") +
+        (features.yoRadioWsEnabled ? "ON" : "OFF") + " (runtime pending)");
+    Logger::info("BOOT", String("  HA Discovery: configured ") +
+        (features.haDiscoveryEnabled ? "ON" : "OFF") + " (runtime pending)");
+    Logger::info("BOOT", "Default source: STOP (runtime default_source not configured)");
+
     Logger::info(
         "BT",
         String("Auto reconnect=") +
@@ -95,41 +113,37 @@ bool App::begin() {
 
     StateStore::instance().update(s);
 
-    if (Board::HAS_ENCODER) {
+    if (features.encoderEnabled && Board::HAS_ENCODER) {
         _encoder.begin();
     }
-
-    if (Board::HAS_DISPLAY) {
+    if (features.displayEnabled && Board::HAS_DISPLAY) {
         _display.begin();
     }
 
-    if (_audioOutput.begin() &&
-        _audioOutput.acquire(AudioOutputOwner::Bluetooth)) {
-        const String btName =
-            makeBluetoothName();
-
-        if (!_bluetooth.begin(
-                _audioOutput,
-                btName,
-                s.volume
-            )) {
-            Logger::warn(
-                "BT",
-                "Bluetooth unavailable"
+    if (!_audioOutput.begin()) {
+        Logger::error("AUDIO", "AudioOutputManager init failed");
+        return false;
+    }
+    if (features.bluetoothEnabled) {
+        if (_audioOutput.acquire(AudioOutputOwner::Bluetooth)) {
+            _bluetoothAvailable = _bluetooth.begin(
+                _audioOutput, makeBluetoothName(), s.volume
             );
-            _audioOutput.release(AudioOutputOwner::Bluetooth);
+            if (!_bluetoothAvailable) {
+                Logger::warn("BT", "Bluetooth unavailable");
+                _audioOutput.release(AudioOutputOwner::Bluetooth);
+            }
+        } else {
+            Logger::warn("BT", "Bluetooth skipped because I2S is unavailable");
         }
-    } else {
-        Logger::warn(
-            "AUDIO",
-            "Bluetooth skipped because "
-            "I2S is unavailable"
-        );
     }
 
     _wifi.begin(_config);
-    _radio.begin(_audioOutput);
-    _radio.setVolume(s.volume);
+    if (features.radioEnabled) {
+        _radioAvailable = _radio.begin(_audioOutput);
+        if (_radioAvailable) _radio.setVolume(s.volume);
+        else Logger::warn("RADIO", "Radio unavailable");
+    }
 #if VOXONE_RADIO_TEST_CONTROLS
     Logger::info("RADIO", "Serial test commands: radio start / radio stop");
 #endif
@@ -145,11 +159,15 @@ bool App::begin() {
 }
 
 bool App::startRadio(const char* url) {
-    if (_radioSession || !url || strncmp(url, "http://", 7) != 0 ||
+    if (!_radioAvailable || _radioSession || !url ||
+        strncmp(url, "http://", 7) != 0 ||
         !StateStore::instance().snapshot().wifiConnected) return false;
-    if (!_bluetooth.suspendForSourceSwitch()) {
-        Logger::error("RADIO", "BT suspend failed; radio not started");
-        return false;
+    if (_bluetoothAvailable) {
+        if (!_bluetooth.suspendForSourceSwitch()) {
+            Logger::error("RADIO", "BT suspend failed; radio not started");
+            return false;
+        }
+        _btSuspendedForRadio = true;
     }
     _radioSession = true;
     _btWasConnected = false;
@@ -190,11 +208,14 @@ void App::stopRadio() {
         return;
     }
     _radioSession = false;
-    if (!_bluetooth.resumeAfterSourceSwitch()) {
-        Logger::error("RADIO", "BT resume failed; output remains unavailable");
-        return;
+    if (_btSuspendedForRadio) {
+        _btSuspendedForRadio = false;
+        if (!_bluetooth.resumeAfterSourceSwitch()) {
+            Logger::error("RADIO", "BT resume failed; output remains unavailable");
+            return;
+        }
+        if (_config.bluetoothAutoReconnect()) _bluetooth.reconnect();
     }
-    if (_config.bluetoothAutoReconnect()) _bluetooth.reconnect();
 }
 
 void App::processRadioTestCommands() {
@@ -210,7 +231,8 @@ void App::processRadioTestCommands() {
                     if (!startRadio(VOXONE_RADIO_TEST_URL))
                         Logger::warn("RADIO", "Serial start rejected or failed");
                 } else if (strcmp(_radioCommand, "radio stop") == 0) {
-                    stopRadio();
+                    if (_radioAvailable) stopRadio();
+                    else Logger::warn("RADIO", "Serial stop ignored: radio disabled");
                 }
             }
             _radioCommandLength = 0;
@@ -399,6 +421,17 @@ void App::processCommands() {
     while (
         CommandQueue::instance().pop(cmd)
     ) {
+        if (cmd.source == CommandSource::Bluetooth &&
+            !_bluetoothAvailable) {
+            Logger::warn("BT", "Command ignored: Bluetooth disabled");
+            continue;
+        }
+        if (cmd.source == CommandSource::Encoder &&
+            !(_config.features().encoderEnabled && Board::HAS_ENCODER)) {
+            Logger::warn("ENCODER", "Command ignored: encoder disabled");
+            continue;
+        }
+
         auto s =
             StateStore::instance().snapshot();
 
@@ -410,14 +443,14 @@ void App::processCommands() {
                     _config.maxVolume()
                 );
 
-                _bluetooth.setVolume(
-                    s.volume
-                );
+                if (_bluetoothAvailable) {
+                    _bluetooth.setVolume(s.volume);
+                }
 
                 _volumeDirty = true;
                 _volumeSaveDue =
                     millis() + 1500;
-                _radio.setVolume(s.volume);
+                if (_radioAvailable) _radio.setVolume(s.volume);
                 break;
 
             case CommandType::SetVolumeAbsolute:
@@ -427,19 +460,15 @@ void App::processCommands() {
                     _config.maxVolume()
                 );
 
-                if (
-                    cmd.source !=
-                    CommandSource::Bluetooth
-                ) {
-                    _bluetooth.setVolume(
-                        s.volume
-                    );
+                if (_bluetoothAvailable &&
+                    cmd.source != CommandSource::Bluetooth) {
+                    _bluetooth.setVolume(s.volume);
                 }
 
                 _volumeDirty = true;
                 _volumeSaveDue =
                     millis() + 1500;
-                _radio.setVolume(s.volume);
+                if (_radioAvailable) _radio.setVolume(s.volume);
                 break;
 
             case CommandType::TogglePlayStop:
@@ -447,7 +476,7 @@ void App::processCommands() {
                     stopRadio();
                     continue; // Do not overwrite the fresh BT transport state.
                 }
-                if (s.bluetoothConnected) {
+                if (_bluetoothAvailable && s.bluetoothConnected) {
                     if (s.bluetoothPlaying) {
                         _bluetooth.pause();
                     } else {
@@ -457,11 +486,13 @@ void App::processCommands() {
                 break;
 
             case CommandType::SetPlay:
-                _bluetooth.play();
+                if (_bluetoothAvailable) _bluetooth.play();
+                else Logger::warn("BT", "Play ignored: Bluetooth disabled");
                 break;
 
             case CommandType::Pause:
-                _bluetooth.pause();
+                if (_bluetoothAvailable) _bluetooth.pause();
+                else Logger::warn("BT", "Pause ignored: Bluetooth disabled");
                 break;
 
             case CommandType::SetStop:
@@ -469,15 +500,18 @@ void App::processCommands() {
                     stopRadio();
                     continue;
                 }
-                _bluetooth.stop();
+                if (_bluetoothAvailable) _bluetooth.stop();
+                else Logger::warn("BT", "Stop ignored: Bluetooth disabled");
                 break;
 
             case CommandType::Next:
-                _bluetooth.next();
+                if (_bluetoothAvailable) _bluetooth.next();
+                else Logger::warn("BT", "Next ignored: Bluetooth disabled");
                 break;
 
             case CommandType::Previous:
-                _bluetooth.previous();
+                if (_bluetoothAvailable) _bluetooth.previous();
+                else Logger::warn("BT", "Previous ignored: Bluetooth disabled");
                 break;
         }
 
@@ -508,22 +542,26 @@ void App::processCommands() {
 
 void App::loop() {
     processRadioTestCommands();
-    _radio.loop();
-    if (_radioSession && !_radio.isRunning() &&
-        _audioOutput.owner() == AudioOutputOwner::None) stopRadio();
-    if (Board::HAS_ENCODER) {
+    if (_radioAvailable) {
+        _radio.loop();
+        if (_radioSession && !_radio.isRunning() &&
+            _audioOutput.owner() == AudioOutputOwner::None) stopRadio();
+    }
+    if (_config.features().encoderEnabled && Board::HAS_ENCODER) {
         _encoder.loop();
     }
 
-    _bluetooth.loop();
-    updateBluetoothOwnership();
+    if (_bluetoothAvailable) {
+        _bluetooth.loop();
+        updateBluetoothOwnership();
+    }
     processCommands();
 
     _wifi.loop();
     _time.loop();
     _web.loop();
 
-    if (Board::HAS_DISPLAY) {
+    if (_config.features().displayEnabled && Board::HAS_DISPLAY) {
         _display.loop();
     }
 
