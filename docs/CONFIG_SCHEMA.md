@@ -1,7 +1,7 @@
 # VoxOne runtime configuration schema
 
 Status: backend schema 5 is stored and validated by ConfigManager. WWW
-configuration and most hardware wiring remain planned. Firmware remains 0.4.0.
+configuration is available through WWW; most hardware wiring remains planned. Firmware remains 0.4.0.
 
 ## Configuration transaction
 
@@ -175,7 +175,7 @@ I2S idle. A RADIO default is recorded but cannot start a stream without a
 station list. MAX98357A and SSD1306 are skipped with warnings. Brightness,
 screensaver, encoder acceleration, MQTT, yoRadio and most network details
 remain stored only.
-PLANNED: SSD1306, MAX98357A, PlayMedia, dynamic WWW configuration and HA
+PLANNED: SSD1306, MAX98357A, PlayMedia and HA
 handoff. A full power-loss-atomic WWW snapshot transaction is not implemented.
 
 PENDING HARDWARE VALIDATION: no-OTA partition, shared audio lifecycle,

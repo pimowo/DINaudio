@@ -1,41 +1,30 @@
 #include "WebService.h"
+
+#include <cerrno>
+#include <cstdlib>
+#include <esp_system.h>
+
 #include "AppConfig.h"
-#include "BuildInfo.h"
+#include "../audio/AudioOutputManager.h"
 #include "../config/ConfigManager.h"
-#include "../core/StateStore.h"
 #include "../core/CommandQueue.h"
 #include "../diagnostics/Logger.h"
+#include "WebConfigPage.h"
 #include "WiFiService.h"
-
-static String htmlHeader(const String& title) {
-    return String(
-        "<!doctype html><html><head><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<title>") + title + "</title>"
-        "<style>"
-        "body{font-family:Arial,sans-serif;max-width:760px;margin:30px auto;padding:0 16px;background:#101215;color:#eee}"
-        ".card{background:#1a1d22;padding:18px;border-radius:12px;margin:12px 0}"
-        "a,button{color:#fff;background:#2979ff;border:0;border-radius:8px;padding:10px 14px;text-decoration:none;display:inline-block;margin:4px}"
-        "input{padding:10px;border-radius:8px;border:1px solid #555;background:#0f1114;color:#fff;width:95%;margin:5px 0}"
-        ".warn{background:#b26a00}.danger{background:#c62828}.ok{color:#7ee787}.info{color:#79c0ff}"
-        "small{color:#aaa}"
-        "</style></head><body>";
-}
-
-static const char* sourceName(AudioSource source) {
-    switch (source) {
-        case AudioSource::Bluetooth: return "BLUETOOTH";
-        case AudioSource::Test: return "TEST";
-        case AudioSource::Stop:
-        default: return "STOP";
-    }
-}
 
 WebService::WebService() : _server(AppConfig::HTTP_PORT) {}
 
-void WebService::begin(ConfigManager& config, WiFiService& wifi) {
+void WebService::begin(ConfigManager& config, WiFiService& wifi,
+                       AudioOutputManager& audioOutput) {
     _config = &config;
     _wifi = &wifi;
+    _audioOutput = &audioOutput;
+    char token[25];
+    snprintf(token, sizeof(token), "%08lx%08lx%08lx",
+             static_cast<unsigned long>(esp_random()),
+             static_cast<unsigned long>(esp_random()),
+             static_cast<unsigned long>(esp_random()));
+    _token = token;
     routes();
     _server.begin();
     Logger::info("WEB", "HTTP server started");
@@ -43,241 +32,166 @@ void WebService::begin(ConfigManager& config, WiFiService& wifi) {
 
 void WebService::routes() {
     _server.on("/", HTTP_GET, [this]() { handleRoot(); });
+    _server.on("/assets/voxone.css", HTTP_GET, [this]() {
+        _server.send_P(200, "text/css; charset=utf-8", WebConfigPage::css());
+    });
     _server.on("/api/v1/status", HTTP_GET, [this]() { handleStatus(); });
+    _server.on("/api/v1/config", HTTP_GET, [this]() { handleConfigGet(); });
+    _server.on("/api/v1/config", HTTP_POST, [this]() { handleConfigSave(); });
+    _server.on("/api/v1/config/reset", HTTP_POST,
+               [this]() { handleResetDefaults(); });
+
     _server.on("/wifi/save", HTTP_POST, [this]() { handleSaveWifi(); });
     _server.on("/wifi/clear", HTTP_POST, [this]() { handleClearWifi(); });
+    _server.on("/reboot", HTTP_POST, [this]() { handleReboot(); });
 
     _server.on("/play", HTTP_POST, [this]() { handlePlay(); });
     _server.on("/pause", HTTP_POST, [this]() {
-        CommandQueue::instance().push({
-            CommandType::Pause,
-            CommandSource::Web,
-            0
-        });
-        _server.sendHeader("Location", "/");
-        _server.send(303);
+        if (!authorizeAction()) return;
+        CommandQueue::instance().push({CommandType::Pause, CommandSource::Web, 0});
+        sendJson(200, "{\"ok\":true}");
     });
     _server.on("/next", HTTP_POST, [this]() {
-        CommandQueue::instance().push({
-            CommandType::Next,
-            CommandSource::Web,
-            0
-        });
-        _server.sendHeader("Location", "/");
-        _server.send(303);
+        if (!authorizeAction()) return;
+        CommandQueue::instance().push({CommandType::Next, CommandSource::Web, 0});
+        sendJson(200, "{\"ok\":true}");
     });
     _server.on("/previous", HTTP_POST, [this]() {
-        CommandQueue::instance().push({
-            CommandType::Previous,
-            CommandSource::Web,
-            0
-        });
-        _server.sendHeader("Location", "/");
-        _server.send(303);
+        if (!authorizeAction()) return;
+        CommandQueue::instance().push({CommandType::Previous, CommandSource::Web, 0});
+        sendJson(200, "{\"ok\":true}");
     });
     _server.on("/stop", HTTP_POST, [this]() { handleStop(); });
     _server.on("/volume", HTTP_POST, [this]() { handleVolume(); });
-    _server.on("/reboot", HTTP_POST, [this]() { handleReboot(); });
 
     _server.onNotFound([this]() {
-        _server.send(404, "text/plain", "Not found");
+        _server.send(404, "text/plain; charset=utf-8", "Not found");
     });
 }
 
 void WebService::handleRoot() {
-    const auto s = StateStore::instance().snapshot();
-
-    String h = htmlHeader("VoxOne");
-    h += "<h1>VoxOne</h1>";
-
-    h += "<div class='card'><h3>Bluetooth / AVRCP</h3>";
-    h += "<b>Firmware:</b> " + String(AppConfig::FW_VERSION);
-    h += "<br><b>VoxOne BT:</b> " + s.bluetoothDeviceName;
-    h += "<br><b>Telefon:</b> " +
-         (s.bluetoothPeerName.isEmpty() ? String("-") : s.bluetoothPeerName);
-    h += "<br><b>Połączenie:</b> ";
-    h += s.bluetoothConnected
-        ? "<span class='ok'>CONNECTED</span>"
-        : "DISCONNECTED";
-    h += "<br><b>Audio:</b> ";
-    h += s.bluetoothPlaying
-        ? "<span class='ok'>PLAYING</span>"
-        : "IDLE";
-    h += "<br><b>Artysta:</b> " +
-         (s.bluetoothArtist.isEmpty() ? String("-") : s.bluetoothArtist);
-    h += "<br><b>Utwór:</b> " +
-         (s.bluetoothTitle.isEmpty() ? String("-") : s.bluetoothTitle);
-    h += "<br><b>Źródło:</b> " + String(sourceName(s.audioSource));
-    h += "<p>";
-    h += "<form method='post' action='/previous' style='display:inline'><button>&lt;&lt;</button></form>";
-    h += "<form method='post' action='/play' style='display:inline'><button>PLAY</button></form>";
-    h += "<form method='post' action='/pause' style='display:inline'><button>PAUSE</button></form>";
-    h += "<form method='post' action='/next' style='display:inline'><button>&gt;&gt;</button></form>";
-    h += "</p></div>";
-
-    h += "<div class='card'><h3>Głośność</h3>";
-    h += "<p>VOL: <b>" + String(s.volume) +
-         "</b> / " + String(_config->maxVolume()) + "</p>";
-    h += "<form method='post' action='/volume'>";
-    h += "<input type='number' name='v' min='0' max='" +
-         String(_config->maxVolume()) +
-         "' value='" + String(s.volume) + "'>";
-    h += "<button>Zapisz głośność</button></form>";
-    h += "<p><small>Telefon, enkoder i WWW powinny synchronizować tę samą wartość.</small></p>";
-    h += "</div>";
-
-    h += "<div class='card'><h3>System</h3>";
-    h += "<b>Host:</b> " + s.hostname + ".local";
-    h += "<br><b>IP:</b> " + s.ip;
-    h += "<br><b>Wi-Fi:</b> " +
-         (s.wifiConnected ? s.wifiSsid : String("offline"));
-    h += "<br><b>RSSI:</b> " + String(s.wifiRssi) + " dBm";
-    h += "<br><b>Config schema:</b> " +
-         String(_config->schemaVersion());
-    h += "</div>";
-
-    h += "<div class='card'><h3>Wi-Fi</h3>";
-    h += "<form method='post' action='/wifi/save'>";
-    h += "<input name='ssid' placeholder='SSID' value='" +
-         _config->wifiSsid() + "'>";
-    h += "<input name='password' type='password' placeholder='Hasło'>";
-    h += "<button>Zapisz Wi-Fi</button></form>";
-    h += "<form method='post' action='/wifi/clear'><button class='danger'>Usuń zapisane Wi-Fi</button></form>";
-    h += "</div>";
-
-    h += "<div class='card'><h3>Firmware</h3>";
-    h += "<form method='post' action='/reboot' style='display:inline'><button class='warn'>Restart</button></form>";
-    h += "</div>";
-
-    h += "<div class='card'><small>Build: " +
-         String(VOXONE_BUILD_DATE) + " / " +
-         String(VOXONE_BUILD_GIT) + "</small></div>";
-
-    h += "</body></html>";
-
-    _server.send(
-        200,
-        "text/html; charset=utf-8",
-        h
-    );
+    _server.send_P(200, "text/html; charset=utf-8", WebConfigPage::html());
 }
 
-void WebService::handleStatus() {
-    const auto s = StateStore::instance().snapshot();
+void WebService::sendJson(int status, const String& body) {
+    _server.sendHeader("Cache-Control", "no-store");
+    _server.send(status, "application/json; charset=utf-8", body);
+}
 
-    String json = "{";
-    json += "\"fw\":\"" + String(AppConfig::FW_VERSION) + "\",";
-    json += "\"config_schema\":" + String(_config->schemaVersion()) + ",";
-    json += "\"volume\":" + String(s.volume) + ",";
-    json += "\"max_volume\":" + String(_config->maxVolume()) + ",";
-    json += "\"audio_source\":\"" + String(sourceName(s.audioSource)) + "\",";
-    json += "\"bluetooth_connected\":" +
-            String(s.bluetoothConnected ? "true" : "false") + ",";
-    json += "\"bluetooth_playing\":" +
-            String(s.bluetoothPlaying ? "true" : "false") + ",";
-    json += "\"bluetooth_peer\":\"" + s.bluetoothPeerName + "\",";
-    json += "\"bluetooth_artist\":\"" + s.bluetoothArtist + "\",";
-    json += "\"bluetooth_title\":\"" + s.bluetoothTitle + "\",";
-    json += "\"wifi_connected\":" +
-            String(s.wifiConnected ? "true" : "false") + ",";
-    json += "\"ip\":\"" + s.ip + "\"";
-    json += "}";
+bool WebService::authorizeAction() {
+    if (_restartPending) {
+        sendJson(409, "{\"ok\":false,\"error\":\"Restart został już zaplanowany.\"}");
+        return false;
+    }
+    if (_token.isEmpty() || !_server.hasArg("_token") ||
+        _server.arg("_token") != _token) {
+        sendJson(403, "{\"ok\":false,\"error\":\"Brak ważnego tokena formularza.\"}");
+        return false;
+    }
+    return true;
+}
 
-    _server.send(200, "application/json", json);
+void WebService::scheduleRestart() {
+    _restartPending = true;
+    _restartDeadline = millis() + 1000;
 }
 
 void WebService::handleSaveWifi() {
-    String ssid = _server.arg("ssid");
-    String password = _server.arg("password");
-    ssid.trim();
-
-    if (ssid.isEmpty()) {
-        _server.send(
-            400,
-            "text/plain",
-            "SSID required"
-        );
+    if (!authorizeAction()) return;
+    RuntimeConfig candidate = _config->config();
+    if (!_server.hasArg("ssid") || !_server.hasArg("password")) {
+        sendJson(400, "{\"ok\":false,\"error\":\"Brak pól Wi-Fi.\"}");
         return;
     }
-
-    if (!_config->saveWifi(ssid, password)) {
-        _server.send(
-            500,
-            "text/plain",
-            "Save failed"
-        );
+    candidate.network.wifiSsid = _server.arg("ssid");
+    candidate.network.wifiSsid.trim();
+    if (candidate.network.wifiSsid.isEmpty()) {
+        sendJson(400, "{\"ok\":false,\"error\":\"SSID jest wymagane.\"}");
         return;
     }
-
-    _server.send(
-        200,
-        "text/html; charset=utf-8",
-        htmlHeader("Wi-Fi") +
-        "<h2>Zapisano Wi-Fi</h2><a href='/'>Wróć</a></body></html>"
-    );
-
-    delay(150);
-    _wifi->reconnect();
+    if (!_server.arg("password").isEmpty())
+        candidate.network.wifiPassword = _server.arg("password");
+    if (!_config->validate(candidate)) {
+        sendJson(400, "{\"ok\":false,\"error\":\"Niepoprawna konfiguracja Wi-Fi.\"}");
+        return;
+    }
+    if (!_config->save(candidate)) {
+        sendJson(500, "{\"ok\":false,\"error\":\"Zapis NVS nie powiódł się.\"}");
+        return;
+    }
+    sendJson(200, "{\"ok\":true,\"message\":\"Wi-Fi zapisane. VoxOne uruchomi się ponownie.\"}");
+    scheduleRestart();
 }
 
 void WebService::handleClearWifi() {
-    _config->clearWifi();
-    _server.send(
-        200,
-        "text/plain",
-        "Wi-Fi cleared. Restarting..."
-    );
-    delay(250);
-    ESP.restart();
+    if (!authorizeAction()) return;
+    if (_server.arg("confirm") != "YES") {
+        sendJson(400, "{\"ok\":false,\"error\":\"Potwierdzenie jest wymagane.\"}");
+        return;
+    }
+    RuntimeConfig candidate = _config->config();
+    candidate.network.wifiSsid = "";
+    candidate.network.wifiPassword = "";
+    if (!_config->validate(candidate)) {
+        sendJson(400, "{\"ok\":false,\"error\":\"Niepoprawna konfiguracja.\"}");
+        return;
+    }
+    if (!_config->save(candidate)) {
+        sendJson(500, "{\"ok\":false,\"error\":\"Zapis NVS nie powiódł się.\"}");
+        return;
+    }
+    sendJson(200, "{\"ok\":true,\"message\":\"Wi-Fi usunięte. VoxOne uruchomi się ponownie.\"}");
+    scheduleRestart();
 }
 
 void WebService::handlePlay() {
-    CommandQueue::instance().push({
-        CommandType::SetPlay,
-        CommandSource::Web,
-        0
-    });
-    _server.sendHeader("Location", "/");
-    _server.send(303);
+    if (!authorizeAction()) return;
+    CommandQueue::instance().push({CommandType::SetPlay, CommandSource::Web, 0});
+    sendJson(200, "{\"ok\":true}");
 }
 
 void WebService::handleStop() {
-    CommandQueue::instance().push({
-        CommandType::SetStop,
-        CommandSource::Web,
-        0
-    });
-    _server.sendHeader("Location", "/");
-    _server.send(303);
+    if (!authorizeAction()) return;
+    CommandQueue::instance().push({CommandType::SetStop, CommandSource::Web, 0});
+    sendJson(200, "{\"ok\":true}");
 }
 
 void WebService::handleVolume() {
-    const int v = constrain(
-        _server.arg("v").toInt(),
-        0,
-        _config->maxVolume()
-    );
-
+    if (!authorizeAction()) return;
+    const String raw = _server.arg("v");
+    if (raw.isEmpty() || raw.length() > 3) {
+        sendJson(400, "{\"ok\":false,\"error\":\"Niepoprawna głośność.\"}");
+        return;
+    }
+    errno = 0;
+    char* end = nullptr;
+    const long value = strtol(raw.c_str(), &end, 10);
+    if (errno == ERANGE || end == raw.c_str() || *end != '\0' ||
+        value < 0 || value > _config->maxVolume()) {
+        sendJson(400, "{\"ok\":false,\"error\":\"Niepoprawna głośność.\"}");
+        return;
+    }
     CommandQueue::instance().push({
-        CommandType::SetVolumeAbsolute,
-        CommandSource::Web,
-        v
+        CommandType::SetVolumeAbsolute, CommandSource::Web,
+        static_cast<int>(value)
     });
-
-    _server.sendHeader("Location", "/");
-    _server.send(303);
+    sendJson(200, "{\"ok\":true}");
 }
 
 void WebService::handleReboot() {
-    _server.send(
-        200,
-        "text/plain",
-        "Restarting..."
-    );
-    delay(200);
-    ESP.restart();
+    if (!authorizeAction()) return;
+    if (_server.arg("confirm") != "YES") {
+        sendJson(400, "{\"ok\":false,\"error\":\"Potwierdzenie jest wymagane.\"}");
+        return;
+    }
+    sendJson(200, "{\"ok\":true,\"message\":\"VoxOne uruchomi się ponownie.\"}");
+    scheduleRestart();
 }
 
 void WebService::loop() {
     _server.handleClient();
+    if (_restartPending &&
+        static_cast<int32_t>(millis() - _restartDeadline) >= 0) {
+        ESP.restart();
+    }
 }

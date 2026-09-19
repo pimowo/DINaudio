@@ -172,7 +172,7 @@ bool App::begin() {
     Logger::info("RADIO", "Serial test commands: radio start / radio stop");
 #endif
     _time.begin();
-    _web.begin(_config, _wifi);
+    _web.begin(_config, _wifi, _audioOutput);
 
     Logger::info(
         "BOOT",
@@ -545,6 +545,7 @@ void App::processCommands() {
 
     if (
         _volumeDirty &&
+        !_web.restartPending() &&
         static_cast<int32_t>(
             millis() -
             _volumeSaveDue
