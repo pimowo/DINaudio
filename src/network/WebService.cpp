@@ -6,6 +6,7 @@
 
 #include "AppConfig.h"
 #include "../audio/AudioOutputManager.h"
+#include "../ui/DisplayService.h"
 #include "../config/ConfigManager.h"
 #include "../core/CommandQueue.h"
 #include "../diagnostics/Logger.h"
@@ -15,10 +16,12 @@
 WebService::WebService() : _server(AppConfig::HTTP_PORT) {}
 
 void WebService::begin(ConfigManager& config, WiFiService& wifi,
-                       AudioOutputManager& audioOutput) {
+                       AudioOutputManager& audioOutput,
+                       DisplayService* display) {
     _config = &config;
     _wifi = &wifi;
     _audioOutput = &audioOutput;
+    _display = display;
     char token[25];
     snprintf(token, sizeof(token), "%08lx%08lx%08lx",
              static_cast<unsigned long>(esp_random()),
@@ -28,6 +31,18 @@ void WebService::begin(ConfigManager& config, WiFiService& wifi,
     routes();
     _server.begin();
     Logger::info("WEB", "HTTP server started");
+}
+
+void WebService::prepareDisplayDisable(const RuntimeConfig& candidate) {
+    const RuntimeConfig& current = _config->config();
+    if (!current.features.displayEnabled || candidate.features.displayEnabled ||
+        current.display.type != DisplayType::ST7789 || _display == nullptr ||
+        !_display->isInitialized()) {
+        return;
+    }
+    if (!_display->clearToBlack()) {
+        Logger::warn("DISPLAY", "Could not clear ST7789 before disable");
+    }
 }
 
 void WebService::routes() {

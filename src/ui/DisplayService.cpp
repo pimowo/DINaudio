@@ -5,7 +5,26 @@
 #include "../core/StateStore.h"
 
 namespace {
-static constexpr uint16_t COLOR_DARK_GREY = 0x4208;
+constexpr uint16_t rgb565(uint8_t red, uint8_t green, uint8_t blue) {
+    return static_cast<uint16_t>(
+        ((red & 0xF8) << 8) |
+        ((green & 0xFC) << 3) |
+        (blue >> 3)
+    );
+}
+
+static constexpr uint16_t kColorBackground = rgb565(0, 0, 0);
+static constexpr uint16_t kColorStationName = rgb565(4, 122, 255);
+static constexpr uint16_t kColorStationFill = rgb565(4, 122, 255);
+static constexpr uint16_t kColorTitle = rgb565(255, 255, 255);
+static constexpr uint16_t kColorMuted = rgb565(165, 162, 132);
+static constexpr uint16_t kColorClock = rgb565(255, 255, 255);
+static constexpr uint16_t kColorClockBackground = rgb565(28, 28, 28);
+static constexpr uint16_t kColorVolumeBar = rgb565(231, 211, 90);
+static constexpr uint16_t kColorVolumeValue = rgb565(165, 162, 132);
+static constexpr uint16_t kColorRssi = rgb565(165, 162, 132);
+static constexpr uint16_t kColorDivider = rgb565(165, 162, 132);
+static constexpr uint16_t kColorPlaying = rgb565(44, 212, 32);
 
 static constexpr int DSP_WIDTH = 284;
 static constexpr int HEADER_H = 19;
@@ -48,16 +67,17 @@ void DisplayService::begin() {
     _tft.setRotation(Board::TFT_ROTATION);
     _tft.invertDisplay(false);
     _tft.setTextWrap(false);
+    _initialized = true;
 
     drawStaticLayout();
     updatePlayerFields(true);
 }
 
 void DisplayService::drawStaticLayout() {
-    _tft.fillScreen(ST77XX_BLACK);
+    _tft.fillScreen(kColorBackground);
 
     const uint16_t stationFill =
-        _tft.color565(231, 211, 90);
+        kColorStationFill;
 
     _tft.fillRect(
         0,
@@ -79,7 +99,7 @@ void DisplayService::drawStaticLayout() {
         VOLBAR_Y,
         VOLBAR_W,
         VOLBAR_H + 1,
-        COLOR_DARK_GREY
+        kColorDivider
     );
 
     _layoutDrawn = true;
@@ -168,7 +188,7 @@ void DisplayService::drawHeader(
     const String& peerName
 ) {
     const uint16_t stationFill =
-        _tft.color565(231, 211, 90);
+        kColorStationFill;
 
     _tft.fillRect(
         0,
@@ -193,7 +213,7 @@ void DisplayService::drawHeader(
         HEADER_CHARS
     );
 
-    _tft.setTextColor(ST77XX_BLACK, stationFill);
+    _tft.setTextColor(kColorBackground, stationFill);
     _tft.setTextSize(2);
     _tft.setCursor(3, 2);
     _tft.print(label);
@@ -210,13 +230,13 @@ void DisplayService::drawMetadata(
         TITLE1_Y,
         174,
         20,
-        ST77XX_BLACK
+        kColorBackground
     );
 
     _tft.setTextSize(1);
 
     if (!btConnected && !reconnectGrace) {
-        _tft.setTextColor(ST77XX_CYAN, ST77XX_BLACK);
+        _tft.setTextColor(kColorStationName, kColorBackground);
         _tft.setCursor(LEFT_X, TITLE1_Y);
         _tft.print("STOP");
         return;
@@ -232,11 +252,11 @@ void DisplayService::drawMetadata(
         TITLE_CHARS
     );
 
-    _tft.setTextColor(ST77XX_CYAN, ST77XX_BLACK);
+    _tft.setTextColor(kColorMuted, kColorBackground);
     _tft.setCursor(LEFT_X, TITLE1_Y);
     _tft.print(artistLine.isEmpty() ? "-" : artistLine);
 
-    _tft.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
+    _tft.setTextColor(kColorTitle, kColorBackground);
     _tft.setCursor(LEFT_X, TITLE2_Y);
     _tft.print(titleLine.isEmpty() ? "-" : titleLine);
 }
@@ -251,27 +271,27 @@ void DisplayService::drawSourceInfo(
         INFO1_Y,
         174,
         10,
-        ST77XX_BLACK
+        kColorBackground
     );
 
     _tft.setTextSize(1);
     _tft.setCursor(LEFT_X, INFO1_Y);
 
     if (reconnectGrace) {
-        _tft.setTextColor(ST77XX_YELLOW, ST77XX_BLACK);
+        _tft.setTextColor(kColorVolumeBar, kColorBackground);
         _tft.print("BT A2DP  RECONNECT");
     } else if (btConnected) {
-        _tft.setTextColor(ST77XX_CYAN, ST77XX_BLACK);
+        _tft.setTextColor(kColorStationName, kColorBackground);
         _tft.print("BT A2DP");
 
         _tft.setTextColor(
-            btPlaying ? ST77XX_GREEN : ST77XX_YELLOW,
-            ST77XX_BLACK
+            btPlaying ? kColorPlaying : kColorVolumeBar,
+            kColorBackground
         );
 
         _tft.print(btPlaying ? "  PLAY" : "  PAUSE");
     } else {
-        _tft.setTextColor(ST77XX_YELLOW, ST77XX_BLACK);
+        _tft.setTextColor(kColorVolumeBar, kColorBackground);
         _tft.print("SOURCE: STOP");
     }
 }
@@ -286,7 +306,7 @@ void DisplayService::drawWifiIndicator(
         WIFI_Y,
         78,
         14,
-        ST77XX_BLACK
+        kColorBackground
     );
 
     _tft.setTextSize(1);
@@ -294,14 +314,14 @@ void DisplayService::drawWifiIndicator(
 
     if (!wifiConnected) {
         _tft.setTextColor(
-            apMode ? ST77XX_YELLOW : COLOR_DARK_GREY,
-            ST77XX_BLACK
+            apMode ? kColorVolumeBar : kColorDivider,
+            kColorBackground
         );
         _tft.print(apMode ? "AP" : "WIFI --");
         return;
     }
 
-    _tft.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
+    _tft.setTextColor(kColorMuted, kColorBackground);
     _tft.print("WIFI");
 
     const int level = wifiLevel(wifiRssi);
@@ -311,7 +331,7 @@ void DisplayService::drawWifiIndicator(
     for (int i = 0; i < 4; ++i) {
         const int h = 2 + i * 2;
         const uint16_t color =
-            i < level ? ST77XX_GREEN : COLOR_DARK_GREY;
+            i < level ? kColorPlaying : kColorDivider;
 
         _tft.fillRect(
             baseX + i * 6,
@@ -332,17 +352,17 @@ void DisplayService::drawClock(
         CLOCK_Y,
         CLOCK_W,
         CLOCK_H,
-        ST77XX_BLACK
+        kColorClockBackground
     );
 
     _tft.setTextSize(2);
     _tft.setCursor(CLOCK_X, CLOCK_Y);
 
     if (valid && !clockText.isEmpty()) {
-        _tft.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
+        _tft.setTextColor(kColorClock, kColorClockBackground);
         _tft.print(clockText);
     } else {
-        _tft.setTextColor(COLOR_DARK_GREY, ST77XX_BLACK);
+        _tft.setTextColor(kColorRssi, kColorClockBackground);
         _tft.print("--:--");
     }
 }
@@ -358,7 +378,7 @@ void DisplayService::drawVolumeBar(int volume) {
         VOLBAR_Y + 1,
         innerW,
         VOLBAR_H - 1,
-        ST77XX_BLACK
+        kColorBackground
     );
 
     if (filled > 0) {
@@ -367,7 +387,7 @@ void DisplayService::drawVolumeBar(int volume) {
             VOLBAR_Y + 1,
             filled,
             VOLBAR_H - 1,
-            ST77XX_CYAN
+            kColorVolumeBar
         );
     }
 
@@ -376,7 +396,7 @@ void DisplayService::drawVolumeBar(int volume) {
         VOLBAR_Y,
         VOLBAR_W,
         VOLBAR_H + 1,
-        COLOR_DARK_GREY
+        kColorDivider
     );
 }
 
@@ -386,7 +406,7 @@ void DisplayService::drawVolumeValue(int volume) {
         22,
         _tft.width(),
         36,
-        ST77XX_BLACK
+        kColorBackground
     );
 
     char vol[8];
@@ -397,7 +417,7 @@ void DisplayService::drawVolumeValue(int volume) {
         constrain(volume, 0, 100)
     );
 
-    _tft.setTextColor(ST77XX_CYAN, ST77XX_BLACK);
+    _tft.setTextColor(kColorVolumeValue, kColorBackground);
     _tft.setTextSize(3);
 
     int16_t x1, y1;
@@ -427,11 +447,11 @@ void DisplayService::drawVolumeIp(const String& ip) {
         60,
         _tft.width(),
         12,
-        ST77XX_BLACK
+        kColorBackground
     );
 
     _tft.setTextSize(1);
-    _tft.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
+    _tft.setTextColor(kColorMuted, kColorBackground);
     _tft.setCursor(3, 62);
 
     if (ip.isEmpty()) {
@@ -450,10 +470,10 @@ void DisplayService::showVolumeScreen(
     _volumeScreenUntil =
         millis() + AppConfig::VOLUME_SCREEN_TIMEOUT_MS;
 
-    _tft.fillScreen(ST77XX_BLACK);
+    _tft.fillScreen(kColorBackground);
 
     const uint16_t stationFill =
-        _tft.color565(231, 211, 90);
+        kColorStationFill;
 
     _tft.fillRect(
         0,
@@ -465,7 +485,7 @@ void DisplayService::showVolumeScreen(
 
     const char* label = "GLOSNOSC";
 
-    _tft.setTextColor(ST77XX_BLACK, stationFill);
+    _tft.setTextColor(kColorBackground, stationFill);
     _tft.setTextSize(2);
 
     int16_t x1, y1;
@@ -591,6 +611,8 @@ void DisplayService::updatePlayerFields(bool force) {
 }
 
 void DisplayService::loop() {
+    if (_visualDisabled) return;
+
     if (!_layoutDrawn) {
         drawStaticLayout();
         updatePlayerFields(true);
@@ -631,7 +653,17 @@ void DisplayService::loop() {
     updatePlayerFields(false);
 }
 
+bool DisplayService::clearToBlack() {
+    if (!_initialized) return false;
+    _tft.fillScreen(kColorBackground);
+    _layoutDrawn = false;
+    _visualDisabled = true;
+    _volumeScreenActive = false;
+    return true;
+}
+
 void DisplayService::redraw() {
+    if (_visualDisabled) return;
     _volumeScreenActive = false;
     drawStaticLayout();
     updatePlayerFields(true);

@@ -172,7 +172,7 @@ bool App::begin() {
     Logger::info("RADIO", "Serial test commands: radio start / radio stop");
 #endif
     _time.begin();
-    _web.begin(_config, _wifi, _audioOutput);
+    _web.begin(_config, _wifi, _audioOutput, _display.get());
 
     Logger::info(
         "BOOT",

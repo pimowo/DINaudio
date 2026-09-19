@@ -328,6 +328,7 @@ void WebService::handleConfigSave() {
         sendJson(500, "{\"ok\":false,\"error\":\"Zapis NVS nie powiódł się.\"}");
         return;
     }
+    prepareDisplayDisable(candidate);
     sendJson(200, "{\"ok\":true,\"message\":\"Ustawienia zapisane. VoxOne zostanie uruchomiony ponownie.\"}");
     scheduleRestart();
 }

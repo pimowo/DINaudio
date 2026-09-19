@@ -12,11 +12,15 @@ public:
     void begin();
     void loop();
     void redraw();
+    bool clearToBlack();
+    bool isInitialized() const { return _initialized; }
 
 private:
     St7789Pins _pins;
     Adafruit_ST7789 _tft;
 
+    bool _initialized = false;
+    bool _visualDisabled = false;
     bool _layoutDrawn = false;
     bool _volumeScreenActive = false;
     uint32_t _volumeScreenUntil = 0;
