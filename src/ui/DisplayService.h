@@ -4,13 +4,14 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7789.h>
 #include "../config/ConfigModel.h"
+#include "UiMode.h"
 
 class DisplayService {
 public:
     explicit DisplayService(const St7789Pins& pins);
 
     void begin();
-    void loop();
+    void loop(UiMode mode);
     void redraw();
     bool clearToBlack();
     bool isInitialized() const { return _initialized; }
@@ -22,8 +23,7 @@ private:
     bool _initialized = false;
     bool _visualDisabled = false;
     bool _layoutDrawn = false;
-    bool _volumeScreenActive = false;
-    uint32_t _volumeScreenUntil = 0;
+    UiMode _renderedMode = UiMode::Home; // Presentation cache; App owns UiMode.
 
     int _lastVolume = -1;
     bool _lastBtConnected = false;
@@ -83,6 +83,7 @@ private:
 
     void drawVolumeValue(int volume);
     void drawVolumeIp(const String& ip);
+    void drawBtTrackNavScreen();
 
     static int wifiLevel(int rssi);
 

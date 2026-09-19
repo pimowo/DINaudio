@@ -12,7 +12,7 @@ private:
     uint8_t _previousAB = 0;
     uint8_t _detentAB = 3;
     int8_t _transitionCount = 0;
-    int _pendingVolumeDelta = 0;
+    int _pendingRotationDelta = 0;
     uint32_t _invalidTransitions = 0;
     uint32_t _incompleteDetents = 0;
     uint32_t _lastDecoderLogMs = 0;
@@ -20,4 +20,6 @@ private:
     bool _lastButtonRaw = HIGH;
     bool _stableButton = HIGH;
     uint32_t _buttonChangedMs = 0;
+    uint32_t _pressStartedMs = 0;
+    bool _longPressSent = false;
 };

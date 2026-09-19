@@ -176,6 +176,7 @@ bool App::begin() {
     _time.begin();
     _web.begin(_config, _wifi, _audioOutput, _display.get());
 
+    Logger::info("UI", "mode=HOME");
     Logger::info(
         "BOOT",
         "VoxOne ready"
@@ -442,6 +443,27 @@ void App::updateBluetoothOwnership() {
     }
 }
 
+void App::touchOverlayTimeout() {
+    _overlayActivityMs = millis();
+}
+
+void App::enterMode(UiMode mode) {
+    if (_uiMode == mode) {
+        if (mode != UiMode::Home) touchOverlayTimeout();
+        return;
+    }
+    _uiMode = mode;
+    if (mode != UiMode::Home) touchOverlayTimeout();
+    const char* label = mode == UiMode::Home ? "HOME" :
+        mode == UiMode::Volume ? "VOLUME" :
+        mode == UiMode::BtTrackNav ? "BT_NAV" : "RADIO_LIST";
+    Logger::info("UI", String("mode=") + label);
+}
+
+void App::returnHome() {
+    enterMode(UiMode::Home);
+}
+
 void App::processCommands() {
     Command cmd;
 
@@ -465,7 +487,24 @@ void App::processCommands() {
             StateStore::instance().snapshot();
 
         switch (cmd.type) {
-            case CommandType::VolumeDelta:
+            case CommandType::EncoderRotation:
+            case CommandType::VolumeDelta: {
+                if (cmd.type == CommandType::EncoderRotation &&
+                    _uiMode == UiMode::BtTrackNav) {
+                    touchOverlayTimeout();
+                    const int step = _config.config().encoder.volumeStep;
+                    const int ticks = abs(cmd.value) / step;
+                    for (int i = 0; i < ticks; ++i) {
+                        if (!_bluetoothAvailable) {
+                            Logger::warn("BT", "Track navigation unavailable");
+                            break;
+                        }
+                        if (cmd.value > 0) _bluetooth.next();
+                        else _bluetooth.previous();
+                    }
+                    continue; // Encoder rotation never changes volume in BT NAV.
+                }
+                const int oldVolume = s.volume;
                 s.volume = constrain(
                     s.volume + cmd.value,
                     0,
@@ -480,9 +519,16 @@ void App::processCommands() {
                 _volumeSaveDue =
                     millis() + 1500;
                 if (_radioAvailable) _radio.setVolume(s.volume);
+                if (cmd.type == CommandType::EncoderRotation ||
+                    s.volume != oldVolume) {
+                    if (_uiMode == UiMode::Home) enterMode(UiMode::Volume);
+                    else if (_uiMode == UiMode::Volume) touchOverlayTimeout();
+                }
                 break;
+            }
 
-            case CommandType::SetVolumeAbsolute:
+            case CommandType::SetVolumeAbsolute: {
+                const int oldVolume = s.volume;
                 s.volume = constrain(
                     cmd.value,
                     0,
@@ -498,9 +544,19 @@ void App::processCommands() {
                 _volumeSaveDue =
                     millis() + 1500;
                 if (_radioAvailable) _radio.setVolume(s.volume);
+                if (s.volume != oldVolume) {
+                    if (_uiMode == UiMode::Home) enterMode(UiMode::Volume);
+                    else if (_uiMode == UiMode::Volume) touchOverlayTimeout();
+                }
                 break;
+            }
 
             case CommandType::TogglePlayStop:
+                if (cmd.source == CommandSource::Encoder &&
+                    _uiMode != UiMode::Home) {
+                    returnHome();
+                    continue;
+                }
                 if (_radioSession) {
                     stopRadio();
                     continue; // Do not overwrite the fresh BT transport state.
@@ -515,6 +571,17 @@ void App::processCommands() {
                     Logger::warn("BT", "PLAY/PAUSE ignored: transport not connected");
                 }
                 break;
+
+            case CommandType::EncoderLongPress:
+                if (_uiMode != UiMode::Home) {
+                    returnHome();
+                } else if (s.audioSource == AudioSource::Bluetooth &&
+                           _bluetoothAvailable) {
+                    enterMode(UiMode::BtTrackNav);
+                } else if (s.audioSource == AudioSource::Radio) {
+                    Logger::info("UI", "Radio list UI not implemented");
+                }
+                continue;
 
             case CommandType::SetPlay:
                 if (_bluetoothAvailable) _bluetooth.play();
@@ -588,13 +655,19 @@ void App::loop() {
         updateBluetoothOwnership();
     }
     processCommands();
+    if (_uiMode == UiMode::BtTrackNav &&
+        StateStore::instance().snapshot().audioSource != AudioSource::Bluetooth)
+        returnHome();
+    if (_uiMode != UiMode::Home &&
+        millis() - _overlayActivityMs >= AppConfig::VOLUME_SCREEN_TIMEOUT_MS)
+        returnHome();
 
     _wifi.loop();
     _time.loop();
     _web.loop();
 
     if (_display) {
-        _display->loop();
+        _display->loop(_uiMode);
     }
     // Take a second cheap AB sample after network/display work.
     if (_config.features().encoderEnabled && Board::HAS_ENCODER) {

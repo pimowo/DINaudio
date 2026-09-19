@@ -47,6 +47,10 @@ static constexpr int VOLUME_Y = 60;
 static constexpr int SPEAKER_SCALE = 2;
 // yoRadio yofont5x7.c, glyph 0x13 (speaker), five 7-bit columns.
 static constexpr uint8_t SPEAKER_GLYPH[] = {0x00, 0x00, 0x18, 0x3C, 0x7E};
+// yoRadio yofont5x7.c glyphs 0x11 (prev), 0x0E (note), 0x10 (next).
+static constexpr uint8_t NAV_PREV[] = {0x08, 0x1C, 0x3E, 0x7F, 0x00};
+static constexpr uint8_t NAV_NOTE[] = {0x60, 0x7F, 0x05, 0x35, 0x3F};
+static constexpr uint8_t NAV_NEXT[] = {0x00, 0x7F, 0x3E, 0x1C, 0x08};
 
 static constexpr int LEFT_X = 2;
 
@@ -441,9 +445,6 @@ void DisplayService::showVolumeScreen(
     int volume,
     const String& ip
 ) {
-    _volumeScreenActive = true;
-    _volumeScreenUntil =
-        millis() + AppConfig::VOLUME_SCREEN_TIMEOUT_MS;
 
     _tft.fillScreen(kColorBackground);
 
@@ -485,6 +486,38 @@ void DisplayService::showVolumeScreen(
 
     drawVolumeValue(volume);
     drawVolumeIp(ip);
+}
+
+void DisplayService::drawBtTrackNavScreen() {
+    _tft.fillScreen(kColorBackground);
+    _tft.fillRect(0, 0, _tft.width(), HEADER_H, kColorSurface);
+
+    const String label(u8"BT - PRZEŁĄCZ UTWÓR");
+    int labelWidth = 0;
+    for (const char* cursor = label.c_str(); *cursor;)
+        labelWidth += glyphAdvance(PolishGlyphs::next(cursor), false, 2);
+    drawUtf8Line(label, (_tft.width() - labelWidth) / 2, 2, _tft.width(),
+                 kColorPrimaryText, kColorSurface, false, 2);
+
+    // Only the three small yoRadio symbols are retained, scaled for ST7789.
+    constexpr int iconScale = 2;
+    constexpr int iconWidth = 5 * iconScale;
+    constexpr int iconGap = 40;
+    constexpr int iconY = 37; // Keeps the symbols centered near their original y=44.
+    const int leftX = (_tft.width() - (3 * iconWidth + 2 * iconGap)) / 2;
+    auto drawIcon = [this, iconScale, iconY](const uint8_t* columns, int x,
+                                             uint16_t color) {
+        for (int column = 0; column < 5; ++column) {
+            for (int row = 0; row < 7; ++row) {
+                if (columns[column] & (1 << row))
+                    _tft.fillRect(x + column * iconScale, iconY + row * iconScale,
+                                  iconScale, iconScale, color);
+            }
+        }
+    };
+    drawIcon(NAV_PREV, leftX, kColorSonyBlue);
+    drawIcon(NAV_NOTE, leftX + iconWidth + iconGap, kColorSecondaryText);
+    drawIcon(NAV_NEXT, leftX + 2 * (iconWidth + iconGap), kColorSonyBlue);
 }
 
 void DisplayService::updatePlayerFields(bool force) {
@@ -585,62 +618,49 @@ void DisplayService::updatePlayerFields(bool force) {
     _lastBtReconnectGrace = s.bluetoothReconnectGrace;
 }
 
-void DisplayService::loop() {
+void DisplayService::loop(UiMode mode) {
     if (_visualDisabled) return;
+    // RadioList has no implementation; a caller cannot expose a blank screen.
+    const UiMode visibleMode = mode == UiMode::RadioList ? UiMode::Home : mode;
+    const DeviceState s = StateStore::instance().snapshot();
 
-    if (!_layoutDrawn) {
-        drawStaticLayout();
-        updatePlayerFields(true);
-        return;
-    }
-
-    const DeviceState s =
-        StateStore::instance().snapshot();
-
-    if (_volumeScreenActive) {
-        if (s.volume != _lastVolume) {
+    if (!_layoutDrawn || visibleMode != _renderedMode) {
+        _renderedMode = visibleMode;
+        if (visibleMode == UiMode::Volume) {
+            showVolumeScreen(s.volume, s.ip);
             _lastVolume = s.volume;
-            _volumeScreenUntil =
-                millis() + AppConfig::VOLUME_SCREEN_TIMEOUT_MS;
-
-            // Only redraw the large number.
-            // IP remains untouched, so it does not blink.
-            drawVolumeValue(s.volume);
-        }
-
-        if ((int32_t)(millis() - _volumeScreenUntil) >= 0) {
-            _volumeScreenActive = false;
+        } else if (visibleMode == UiMode::BtTrackNav) {
+            drawBtTrackNavScreen();
+        } else {
             drawStaticLayout();
             updatePlayerFields(true);
         }
-
+        _layoutDrawn = true;
         return;
     }
 
-    if (_lastVolume >= 0 &&
-        s.volume != _lastVolume) {
-
-        _lastVolume = s.volume;
-        showVolumeScreen(s.volume, s.ip);
+    if (visibleMode == UiMode::Volume) {
+        if (s.volume != _lastVolume) {
+            _lastVolume = s.volume;
+            // Keep the IP field untouched while the large number changes.
+            drawVolumeValue(s.volume);
+        }
         return;
     }
-
+    if (visibleMode == UiMode::BtTrackNav) return;
     updatePlayerFields(false);
 }
-
 bool DisplayService::clearToBlack() {
     if (!_initialized) return false;
     _tft.fillScreen(kColorBlack);
     _layoutDrawn = false;
     _visualDisabled = true;
-    _volumeScreenActive = false;
     return true;
 }
 
 void DisplayService::redraw() {
     if (_visualDisabled) return;
-    _volumeScreenActive = false;
-    drawStaticLayout();
-    updatePlayerFields(true);
+    _layoutDrawn = false;
+    loop(_renderedMode);
 }
 

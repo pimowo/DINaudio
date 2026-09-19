@@ -12,6 +12,7 @@ constexpr int8_t QUAD_TABLE[16] = {
      0, +1, -1,  0
 };
 constexpr int kTransitionsPerDetent = 4;
+constexpr uint32_t kLongPressMs = 800;
 }
 
 void EncoderInput::begin(const EncoderConfig& config) {
@@ -27,6 +28,8 @@ void EncoderInput::begin(const EncoderConfig& config) {
     _lastButtonRaw = digitalRead(_config.pinButton);
     _stableButton = _lastButtonRaw;
     _buttonChangedMs = millis();
+    _pressStartedMs = millis();
+    _longPressSent = false;
 }
 
 void EncoderInput::loop() {
@@ -59,8 +62,8 @@ void EncoderInput::loop() {
                 const int baseStep = _transitionCount > 0 ? -1 : 1;
                 const int direction = _config.direction == EncoderDirection::Reversed
                     ? -baseStep : baseStep;
-                _pendingVolumeDelta = constrain(
-                    _pendingVolumeDelta + direction * _config.volumeStep, -100, 100);
+                _pendingRotationDelta = constrain(
+                    _pendingRotationDelta + direction * _config.volumeStep, -100, 100);
             } else if (_transitionCount != 0) {
                 ++_incompleteDetents;
             }
@@ -68,16 +71,16 @@ void EncoderInput::loop() {
         }
     }
 
-    // One bounded volume command per App loop, retaining a delta if the queue
+    // One bounded rotation command per App loop, retaining a delta if the queue
     // is temporarily full. Rotation never creates PLAY/PAUSE or source commands.
-    if (_pendingVolumeDelta != 0) {
+    if (_pendingRotationDelta != 0) {
         if (CommandQueue::instance().push({
-                CommandType::VolumeDelta, CommandSource::Encoder, _pendingVolumeDelta
+                CommandType::EncoderRotation, CommandSource::Encoder, _pendingRotationDelta
             })) {
-            _pendingVolumeDelta = 0;
+            _pendingRotationDelta = 0;
         } else if (millis() - _lastQueueWarningMs >= 1000) {
             _lastQueueWarningMs = millis();
-            Logger::warn("ENCODER", "Volume queue full; delta retained");
+            Logger::warn("ENCODER", "Rotation queue full; delta retained");
         }
     }
 
@@ -98,18 +101,34 @@ void EncoderInput::loop() {
         _buttonChangedMs = millis();
     }
 
-    if ((millis() - _buttonChangedMs) >= 30 && raw != _stableButton) {
-        _stableButton = raw;
-        if (_stableButton == LOW) {
-            if (CommandQueue::instance().push({
-                    CommandType::TogglePlayStop,
-                    CommandSource::Encoder,
-                    0
-                })) {
-                Logger::info("ENCODER", "PLAY/PAUSE click queued");
-            } else {
-                Logger::warn("ENCODER", "PLAY/PAUSE click lost: command queue full");
-            }
+    auto queueButton = [&](CommandType type) {
+        if (CommandQueue::instance().push({type, CommandSource::Encoder, 0})) {
+            Logger::debug("ENCODER", type == CommandType::EncoderLongPress
+                ? "Long press queued" : "Short press queued");
+            return true;
         }
+        if (millis() - _lastQueueWarningMs >= 1000) {
+            _lastQueueWarningMs = millis();
+            Logger::warn("ENCODER", "Button queue full");
+        }
+        return false;
+    };
+
+    if (millis() - _buttonChangedMs >= 30 && raw != _stableButton) {
+        _stableButton = raw;
+        if (raw == LOW) {
+            _pressStartedMs = millis();
+            _longPressSent = false;
+        } else if (!_longPressSent) {
+            const bool longPress =
+                _buttonChangedMs - _pressStartedMs >= kLongPressMs;
+            queueButton(longPress ? CommandType::EncoderLongPress
+                                  : CommandType::TogglePlayStop);
+        }
+    }
+
+    if (_stableButton == LOW && !_longPressSent &&
+        millis() - _pressStartedMs >= kLongPressMs) {
+        _longPressSent = queueButton(CommandType::EncoderLongPress);
     }
 }

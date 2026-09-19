@@ -553,11 +553,25 @@ void BluetoothService::stop() {
 }
 
 void BluetoothService::next() {
-    if (_started) _sink.next();
+    if (!_started ||
+        _sink.get_connection_state() != ESP_A2D_CONNECTION_STATE_CONNECTED ||
+        !_sink.is_avrc_connected()) {
+        Logger::warn("BT", "AVRCP NEXT unavailable: transport/controller not ready");
+        return;
+    }
+    Logger::info("BT", "NEXT requested");
+    _sink.next();
 }
 
 void BluetoothService::previous() {
-    if (_started) _sink.previous();
+    if (!_started ||
+        _sink.get_connection_state() != ESP_A2D_CONNECTION_STATE_CONNECTED ||
+        !_sink.is_avrc_connected()) {
+        Logger::warn("BT", "AVRCP PREVIOUS unavailable: transport/controller not ready");
+        return;
+    }
+    Logger::info("BT", "PREVIOUS requested");
+    _sink.previous();
 }
 
 bool BluetoothService::reconnect() {

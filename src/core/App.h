@@ -8,6 +8,7 @@
 #include "../config/ConfigManager.h"
 #include "../hal/EncoderInput.h"
 #include "../ui/DisplayService.h"
+#include "../ui/UiMode.h"
 #include "../audio/AudioOutputManager.h"
 #include "../bluetooth/BluetoothService.h"
 #include "../radio/RadioService.h"
@@ -42,6 +43,8 @@ private:
 
     uint32_t _volumeSaveDue = 0;
     bool _volumeDirty = false;
+    UiMode _uiMode = UiMode::Home;
+    uint32_t _overlayActivityMs = 0;
 
     bool _btWasConnected = false;
     bool _btReconnectGraceActive = false;
@@ -49,6 +52,9 @@ private:
     AudioSource _sourceBeforeBluetooth = AudioSource::Stop;
 
     void processCommands();
+    void enterMode(UiMode mode);
+    void returnHome();
+    void touchOverlayTimeout();
     bool startRadio(const char* url);
     void stopRadio();
     void processRadioTestCommands();

@@ -3,8 +3,10 @@
 
 enum class CommandType : uint8_t {
     VolumeDelta,
+    EncoderRotation,
     SetVolumeAbsolute,
     TogglePlayStop,
+    EncoderLongPress,
     SetStop,
     SetPlay,
     Pause,
