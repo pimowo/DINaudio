@@ -4,7 +4,7 @@
 
 PLAY_MEDIA is a temporary override and physical third audio owner, not a normal
 user source. It may play TTS or ordinary media. Home
-Assistant owns the request queue; DINaudio owns suspend, completion, cleanup,
+Assistant owns the request queue; VoxOne owns suspend, completion, cleanup,
 volume restoration and base-source restoration.
 
 - [ ] RADIO -> PLAY_MEDIA CURRENT -> RADIO
@@ -60,7 +60,7 @@ implementation are not part of the current checkpoint.
 
 ## Zmiana na układ bez OTA — do weryfikacji sprzętowej
 
-DINaudio nie obsługuje OTA; aktualizacje odbywają się przez USB/serial.
+VoxOne nie obsługuje OTA; aktualizacje odbywają się przez USB/serial.
 Wcześniejsze zaliczenia OTA poniżej są historyczne.
 
 - [ ] pierwsze wgranie przewodowe bootloadera, nowej tabeli i aplikacji
@@ -79,7 +79,7 @@ Wcześniejsze zaliczenia OTA poniżej są historyczne.
 - [x] poprawny kierunek enkodera
 - [x] PCM5102A / I2S
 - [x] ton 440 Hz
-- [x] AP `DINaudio-XXXXXX`
+- [x] AP `DINaudio-XXXXXX` (historyczny test M1 pod dawną nazwą)
 - [x] `192.168.4.1`
 - [x] zapis Wi-Fi
 - [x] połączenie z LAN

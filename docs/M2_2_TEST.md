@@ -2,6 +2,8 @@
 
 Firmware: `0.2.0` (milestone M2.2)
 
+Dokument historyczny: DINaudio to dawna nazwa projektu VoxOne.
+
 ## Testy obowiązkowe
 
 ### 1. Bluetooth audio

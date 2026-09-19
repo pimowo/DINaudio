@@ -5,7 +5,7 @@ static App app;
 
 void setup() {
     if (!app.begin()) {
-        Serial.println("FATAL: DINaudio init failed");
+        Serial.println("FATAL: VoxOne init failed");
     }
 }
 

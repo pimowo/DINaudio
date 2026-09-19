@@ -1,6 +1,10 @@
 ﻿#include "ConfigManager.h"
 
 namespace {
+// LEGACY NVS COMPATIBILITY: retain the existing namespace so user settings
+// survive the product rename. TODO(ConfigManager): migrate all keys to
+// "voxone" with verified writes and a power-loss-safe completion marker;
+// keep the legacy namespace intact for rollback.
 static constexpr const char* NVS_NAMESPACE = "dinaudio";
 
 static constexpr const char* KEY_SCHEMA_VERSION = "cfg_ver";
@@ -114,7 +118,7 @@ bool ConfigManager::migrateV1ToV2() {
 }
 
 bool ConfigManager::migrateV2ToV3() {
-    // DINaudio 0.4.0: wydluzony grace period dla realnego
+    // VoxOne 0.4.0: wydluzony grace period dla realnego
     // wylaczenia i ponownego wlaczenia Bluetooth w telefonie.
     if (_prefs.putUInt(
             KEY_BT_RECONNECT_DELAY,

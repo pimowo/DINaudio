@@ -7,12 +7,12 @@
 #include "../diagnostics/Logger.h"
 #include <cstring>
 
-#ifndef DINAUDIO_RADIO_TEST_CONTROLS
-#define DINAUDIO_RADIO_TEST_CONTROLS 1
+#ifndef VOXONE_RADIO_TEST_CONTROLS
+#define VOXONE_RADIO_TEST_CONTROLS 1
 #endif
-#ifndef DINAUDIO_RADIO_TEST_URL
+#ifndef VOXONE_RADIO_TEST_URL
 // Verified HTTP 200 audio/mpeg, 128 kb/s, 44.1 kHz stereo; ICY disabled.
-#define DINAUDIO_RADIO_TEST_URL "http://ice1.somafm.com/groovesalad-128-mp3"
+#define VOXONE_RADIO_TEST_URL "http://ice1.somafm.com/groovesalad-128-mp3"
 #endif
 
 String App::makeBluetoothName() const {
@@ -38,7 +38,7 @@ bool App::begin() {
 
     Logger::info(
         "BOOT",
-        String("DINaudio ") +
+        String("VoxOne ") +
         AppConfig::FW_VERSION
     );
 
@@ -130,7 +130,7 @@ bool App::begin() {
     _wifi.begin(_config);
     _radio.begin(_audioOutput);
     _radio.setVolume(s.volume);
-#if DINAUDIO_RADIO_TEST_CONTROLS
+#if VOXONE_RADIO_TEST_CONTROLS
     Logger::info("RADIO", "Serial test commands: radio start / radio stop");
 #endif
     _time.begin();
@@ -138,7 +138,7 @@ bool App::begin() {
 
     Logger::info(
         "BOOT",
-        "DINaudio ready"
+        "VoxOne ready"
     );
 
     return true;
@@ -198,7 +198,7 @@ void App::stopRadio() {
 }
 
 void App::processRadioTestCommands() {
-#if DINAUDIO_RADIO_TEST_CONTROLS
+#if VOXONE_RADIO_TEST_CONTROLS
     // Bounded, newline-terminated serial commands; no automatic radio start.
     for (int budget = 0; budget < 24 && Serial.available(); ++budget) {
         const char character = static_cast<char>(Serial.read());
@@ -207,7 +207,7 @@ void App::processRadioTestCommands() {
             _radioCommand[_radioCommandLength] = '\0';
             if (!_radioCommandOverflow) {
                 if (strcmp(_radioCommand, "radio start") == 0) {
-                    if (!startRadio(DINAUDIO_RADIO_TEST_URL))
+                    if (!startRadio(VOXONE_RADIO_TEST_URL))
                         Logger::warn("RADIO", "Serial start rejected or failed");
                 } else if (strcmp(_radioCommand, "radio stop") == 0) {
                     stopRadio();

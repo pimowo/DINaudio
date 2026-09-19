@@ -1,4 +1,4 @@
-# DINaudio final 4 MB layout
+# VoxOne final 4 MB layout
 # Single factory application, no OTA, plus 64 KiB coredump.
 # Total flash: 0x400000 (4 MiB)
 #

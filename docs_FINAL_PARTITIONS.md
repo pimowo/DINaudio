@@ -1,6 +1,6 @@
-# DINaudio — układ partycji 4 MB bez OTA
+# VoxOne — układ partycji 4 MB bez OTA
 
-DINaudio nie obsługuje OTA. Firmware aktualizuje się wyłącznie przez USB/serial.
+VoxOne nie obsługuje OTA. Firmware aktualizuje się wyłącznie przez USB/serial.
 Urządzenie wykorzystuje jeden duży slot aplikacji; zmiana tabeli partycji wymaga
 pierwszego wgrania przewodowego całego zestawu obrazów PlatformIO.
 
@@ -24,8 +24,8 @@ coredump, data, coredump, 0x3F0000, 0x10000,
 
 1. Podłącz ESP32 przez USB i ustal port COM.
 2. Zamknij monitor serial, który może zajmować port.
-3. Wykonaj build: `pio run -e dinaudio_m1`.
-4. Po SUCCESS wykonaj `pio run -e dinaudio_m1 -t upload --upload-port COMx`,
+3. Wykonaj build: `pio run -e voxone`.
+4. Po SUCCESS wykonaj `pio run -e voxone -t upload --upload-port COMx`,
    zastępując COMx rzeczywistym portem. Nie wgrywaj wyłącznie firmware.bin:
    pierwsze wgranie musi zapisać także bootloader i partitions.bin.
 5. Standardowy upload PlatformIO zapisuje obrazy przy właściwych offsetach.

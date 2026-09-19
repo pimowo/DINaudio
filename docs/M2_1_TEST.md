@@ -2,7 +2,7 @@
 
 Firmware: `0.2.0-m2.1`
 
-Dokument historyczny: obecnie DINaudio nie obsługuje OTA i jest aktualizowane
+Dokument historyczny dawnego DINaudio (obecnie VoxOne): obecnie VoxOne nie obsługuje OTA i jest aktualizowane
 przez USB/serial. Opis testów OTA poniżej dotyczy wcześniejszego milestone'u.
 
 ## Cel

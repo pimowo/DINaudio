@@ -149,7 +149,7 @@ bool BluetoothService::configureAndStart(bool resume) {
     if (resume) _sink.resetTransportForResume();
     _outputGate.open(*stream);
     _acceptCallbacks.store(true);
-    // start must not auto-connect on resume: policy belongs to DINaudio.
+    // start must not auto-connect on resume: policy belongs to VoxOne.
     _sink.set_auto_reconnect(false);
     _sink.set_output(_outputGate);
     _sink.set_on_connection_state_changed(&BluetoothService::onConnectionState, this);
@@ -212,7 +212,7 @@ bool BluetoothService::finishSuspend() {
     portENTER_CRITICAL(&_peerMux);
     _acceptCallbacks.store(false);
     portEXIT_CRITICAL(&_peerMux);
-    // All DINaudio callbacks that accepted events have now completed.
+    // All VoxOne callbacks that accepted events have now completed.
     flushPendingEvents();
     if (!_outputGate.closeAndDrain(2000)) {
         _lifecycle = Lifecycle::Fault;
@@ -294,7 +294,7 @@ bool BluetoothService::resumeAfterSourceSwitch() {
     s.bluetoothConnected = false;
     s.bluetoothPlaying = false;
     StateStore::instance().update(s);
-    Logger::info("BT", "Resumed; explicit DINaudio reconnect available");
+    Logger::info("BT", "Resumed; explicit VoxOne reconnect available");
     return true;
 }
 
@@ -327,7 +327,7 @@ void BluetoothService::previous() {
 bool BluetoothService::reconnect() {
     if (!_started) return false;
 
-    // DINaudio's last connected peer is authoritative, including after
+    // VoxOne's last connected peer is authoritative, including after
     // end(false). Restore RAM only when App explicitly requests reconnect.
     portENTER_CRITICAL(&_peerMux);
     if (_hasLastPeer) memcpy(*_sink.get_last_peer_address(), _lastPeerAddress,

@@ -20,7 +20,7 @@ String WiFiService::makeDeviceSuffix() const {
 
 bool WiFiService::begin(ConfigManager& config) {
     _config = &config;
-    _hostname = String("dinaudio-") + makeDeviceSuffix();
+    _hostname = String("voxone-") + makeDeviceSuffix();
     _hostname.toLowerCase();
 
     WiFi.persistent(false);

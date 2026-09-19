@@ -7,7 +7,7 @@
 - konfiguracja Wi-Fi,
 - restart.
 
-DINaudio nie obsługuje OTA. Firmware aktualizuje się przez USB/serial.
+VoxOne nie obsługuje OTA. Firmware aktualizuje się przez USB/serial.
 WWW konfiguracyjne pozostaje dostępne; brak formularza aktualizacji firmware.
 
 ## Docelowo

@@ -185,7 +185,7 @@ void DisplayService::drawHeader(
             ? String("BLUETOOTH")
             : peerName;
     } else {
-        label = "DINaudio";
+        label = "VoxOne";
     }
 
     label = fitText(

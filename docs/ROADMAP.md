@@ -15,7 +15,7 @@ This checkpoint does not include full radio implementation or firmware 0.5.0.
 
 ## Aktualizacje — decyzja projektowa
 
-DINaudio nie obsługuje OTA ani rollbacku OTA. Firmware aktualizuje się przez USB/serial.
+VoxOne nie obsługuje OTA ani rollbacku OTA. Firmware aktualizuje się przez USB/serial.
 Jeden duży slot aplikacji factory: 0x3E0000 = 4 063 232 B.
 Zmiana tabeli partycji wymaga pierwszego wgrania przewodowego.
 Wzmianki o OTA w zakończonych milestone'ach są historyczne.
@@ -90,7 +90,7 @@ To przygotowanie kodowe nie jest implementacją radia ani wersji 0.5.0.
 
 PLAY_MEDIA is a physical third audio owner but remains a temporary override,
 not a normal user source. It can carry TTS or ordinary media. Home Assistant
-provides the request queue; DINaudio provides the PlayMedia lifecycle. Planned;
+provides the request queue; VoxOne provides the PlayMedia lifecycle. Planned;
 requires hardware validation.
 
 ## M5 — PROTOCOLS

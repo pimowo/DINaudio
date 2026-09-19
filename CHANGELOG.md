@@ -34,7 +34,7 @@ Wersjonowanie firmware stosuje Semantic Versioning MAJOR.MINOR.PATCH.
 - poprawka mDNS dla Arduino-ESP32 3.1.3
 
 ## 0.1.0-m1
-- pierwszy właściwy milestone DINaudio
+- pierwszy właściwy milestone pod dawną nazwą DINaudio (obecnie VoxOne)
 - StateStore
 - CommandQueue
 - TFT

@@ -87,12 +87,12 @@ void WebService::routes() {
 void WebService::handleRoot() {
     const auto s = StateStore::instance().snapshot();
 
-    String h = htmlHeader("DINaudio");
-    h += "<h1>DINaudio</h1>";
+    String h = htmlHeader("VoxOne");
+    h += "<h1>VoxOne</h1>";
 
     h += "<div class='card'><h3>Bluetooth / AVRCP</h3>";
     h += "<b>Firmware:</b> " + String(AppConfig::FW_VERSION);
-    h += "<br><b>DINaudio BT:</b> " + s.bluetoothDeviceName;
+    h += "<br><b>VoxOne BT:</b> " + s.bluetoothDeviceName;
     h += "<br><b>Telefon:</b> " +
          (s.bluetoothPeerName.isEmpty() ? String("-") : s.bluetoothPeerName);
     h += "<br><b>Połączenie:</b> ";
@@ -150,8 +150,8 @@ void WebService::handleRoot() {
     h += "</div>";
 
     h += "<div class='card'><small>Build: " +
-         String(DINAUDIO_BUILD_DATE) + " / " +
-         String(DINAUDIO_BUILD_GIT) + "</small></div>";
+         String(VOXONE_BUILD_DATE) + " / " +
+         String(VOXONE_BUILD_GIT) + "</small></div>";
 
     h += "</body></html>";
 

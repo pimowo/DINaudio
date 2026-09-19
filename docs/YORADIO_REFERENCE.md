@@ -1,11 +1,11 @@
-# yoRadio reference for DINaudio
+# yoRadio reference for VoxOne
 
 Repo referencyjne:
 [https://github.com/e2002/yoradio](https://github.com/e2002/yoradio)
 
 ## Cel
 
-yoRadio jest materiałem referencyjnym dla DINaudio, szczególnie dla:
+yoRadio jest materiałem referencyjnym dla VoxOne, szczególnie dla:
 
 - radia internetowego,
 - obsługi listy stacji,
@@ -19,11 +19,11 @@ yoRadio jest materiałem referencyjnym dla DINaudio, szczególnie dla:
 ## Zasady
 
 - nie kopiować architektury yoRadio 1:1,
-- nie mieszać kodu yoRadio z `src/` DINaudio,
-- zachować własną architekturę DINaudio: Core / StateStore / CommandQueue / ownership źródeł,
+- nie mieszać kodu yoRadio z `src/` VoxOne,
+- zachować własną architekturę VoxOne: Core / StateStore / CommandQueue / ownership źródeł,
 - yoRadio traktować jako źródło wiedzy i przykład implementacyjny,
 - przed kopiowaniem konkretnych fragmentów sprawdzać licencję i zgodność,
-- rozwiązania przenosić do architektury DINaudio, a nie odwrotnie.
+- rozwiązania przenosić do architektury VoxOne, a nie odwrotnie.
 
 ## Local setup
 
@@ -31,7 +31,7 @@ yoRadio jest materiałem referencyjnym dla DINaudio, szczególnie dla:
 git clone https://github.com/e2002/yoradio.git reference/yoRadio
 ```
 
-## Important areas to inspect before DINaudio 0.5.0
+## Important areas to inspect before VoxOne 0.5.0
 
 Miejsce na późniejsze wskazanie konkretnych plików/funkcji yoRadio dotyczących:
 
@@ -42,4 +42,4 @@ Miejsce na późniejsze wskazanie konkretnych plików/funkcji yoRadio dotyczący
 - reconnect,
 - display ST7789_76.
 
-Kod z `reference/` nie jest częścią firmware DINaudio.
+Kod z `reference/` nie jest częścią firmware VoxOne.

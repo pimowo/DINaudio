@@ -1,10 +1,10 @@
 #pragma once
 #include "AppConfig.h"
 
-#ifndef DINAUDIO_BUILD_GIT
-#define DINAUDIO_BUILD_GIT "local"
+#ifndef VOXONE_BUILD_GIT
+#define VOXONE_BUILD_GIT "local"
 #endif
 
-#ifndef DINAUDIO_BUILD_DATE
-#define DINAUDIO_BUILD_DATE __DATE__ " " __TIME__
+#ifndef VOXONE_BUILD_DATE
+#define VOXONE_BUILD_DATE __DATE__ " " __TIME__
 #endif

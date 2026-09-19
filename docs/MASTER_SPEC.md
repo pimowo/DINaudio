@@ -1,11 +1,11 @@
-# DINaudio — MASTER SPEC
+# VoxOne — MASTER SPEC
 
 Status: baza po zakończeniu M2.2 i wdrożeniu fundamentu konfiguracji runtime
 Aktualna wersja firmware: 0.4.0
 
 ## Aktualizacje i partycje
 
-DINaudio nie obsługuje OTA. Firmware aktualizuje się przez USB/serial.
+VoxOne nie obsługuje OTA. Firmware aktualizuje się przez USB/serial.
 Jeden slot aplikacji factory zajmuje 0x10000 .. 0x3EFFFF i ma 4 063 232 B.
 NVS i coredump zachowują dotychczasowe offsety i rozmiary; brak otadata.
 Zmiana tabeli wymaga pierwszego wgrania przewodowego bootloadera, tabeli i aplikacji.
@@ -21,7 +21,7 @@ nazwami milestone'ów.
 
 ## Source model and temporary audio override - planned
 
-Normal DINaudio base states are RADIO, BLUETOOTH and STOP. PLAY_MEDIA is a
+Normal VoxOne base states are RADIO, BLUETOOTH and STOP. PLAY_MEDIA is a
 temporary highest-priority override and physical third audio owner:
 
 ```text
@@ -32,7 +32,7 @@ STOP  -> PLAY_MEDIA -> STOP
 
 Full PLAY_MEDIA is not implemented. It may play TTS, MP3, notification sounds,
 HA media or a supported audio URL. Home Assistant owns the queue of requests;
-DINaudio snapshots the base source and logical volume, acquires
+VoxOne snapshots the base source and logical volume, acquires
 PlayMedia, applies policy, detects completion/error/timeout, cleans up and
 restores the saved base source. HA must not guess duration or perform its own
 pause/wait/resume sequence.
@@ -52,7 +52,7 @@ not current firmware behavior.
 
 ## Runtime configuration model - planned
 
-DINaudio uses one firmware and a runtime configuration. WWW edits are staged;
+VoxOne uses one firmware and a runtime configuration. WWW edits are staged;
 only ZAPISZ validates the complete snapshot, writes all values to NVS, sends a
 restart response, waits briefly for HTTP delivery and calls ESP.restart().
 There is no hot reload and invalid configuration produces no partial NVS write.
@@ -78,7 +78,7 @@ Helix MP3 build/link is confirmed and AAC is not linked. Hardware audio,
 the new partition table and runtime BT -> Radio -> BT remain pending.
 ICY metadata, stream reconnect, station list and AAC are not implemented.
 
-DINaudio to autonomiczny moduł audio na klasycznym ESP32:
+VoxOne to autonomiczny moduł audio na klasycznym ESP32:
 - radio internetowe,
 - Bluetooth A2DP,
 - `play_media` from Home Assistant, including TTS as one use case,

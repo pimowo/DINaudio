@@ -4,7 +4,7 @@ namespace AppConfig {
 
 static constexpr const char* FW_VERSION = "0.4.0";
 static constexpr const char* API_VERSION = "v1";
-static constexpr const char* DEVICE_PREFIX = "DINaudio";
+static constexpr const char* DEVICE_PREFIX = "VoxOne";
 
 static constexpr uint32_t SERIAL_BAUD = 115200;
 

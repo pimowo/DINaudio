@@ -1,9 +1,9 @@
-# DINaudio / yoRadio compatibility standard
+# VoxOne / yoRadio compatibility standard
 
 ## Scope and evidence
 
 This is a future protocol standard, not an implemented WS/MQTT transport or a
-claim of tested client compatibility. DINaudio remains firmware 0.4.0.
+claim of tested client compatibility. VoxOne remains firmware 0.4.0.
 The goal is to replace yoRadio for yoPILOT, NexaPanel, NexaPanelMini and Home
 Assistant with only an IP/hostname change. All client acceptance tests are pending.
 
@@ -21,7 +21,7 @@ Primary evidence:
 - [Player and volume steps](https://github.com/e2002/yoradio/blob/2fd3e388d528756f7db666b2261326a6ff234dc7/yoRadio/src/core/player.cpp).
 - [HA consumer](https://github.com/e2002/yoradio/blob/2fd3e388d528756f7db666b2261326a6ff234dc7/HA/custom_components/yoradio/media_player.py).
 
-**Confirmed upstream** means existing yoRadio behavior. **DINaudio proposal**
+**Confirmed upstream** means existing yoRadio behavior. **VoxOne proposal**
 means a future adapter contract, not functionality already implemented here.
 
 ## WebSocket contract
@@ -64,7 +64,7 @@ balance, rssi, heap. Additional top-level fields: sdinit and playermode
 (modeweb/modesd). Here heap is an audio-buffer fill percentage when enabled,
 NOT free heap bytes. Further settings messages are outside this playback profile.
 
-### DINaudio proposal
+### VoxOne proposal
 
 Preserve legacy IDs, messages and types. Escape JSON strings correctly, including
 quotes, backslashes, controls and UTF-8. Broadcast committed state changes;
@@ -126,7 +126,7 @@ Clients fetch the playlist URL over HTTP. Despite `.csv`, entries are tab-separa
 The future endpoint can generate this in memory without a filesystem. The URL
 must be retrievable and numbering must refer to a real, consistent station list.
 
-### DINaudio proposal
+### VoxOne proposal
 
 Keep exactly the five legacy status keys/types, including for BT. Do NOT add
 source, codec or bitrate to status. Optional separate retained plain-text topics:
@@ -145,7 +145,7 @@ root, credentials and broker settings must also match for replacement to work.
 
 Confirmed inbound forms and proposed future CommandQueue translation:
 
-| Meaning | WS text | MQTT text | DINaudio dispatch |
+| Meaning | WS text | MQTT text | VoxOne dispatch |
 | --- | --- | --- | --- |
 | Previous | prev= | prev | Previous |
 | Next | next= | next | Next |
@@ -168,7 +168,7 @@ fraction before clamping 0..254, rather than rejecting HA commands.
 
 MQTT turnoff turns off the display and stops playback, preserving smartstart;
 turnon turns on the display and may start the last station according to smartstart.
-HA uses both. WS dspon=0/1 also controls display power. Future DINaudio power/queue
+HA uses both. WS dspon=0/1 also controls display power. Future VoxOne power/queue
 semantics are not designed yet; a playback-only profile cannot claim full HA
 compatibility without addressing these. getindex/ping are queries, not audio actions.
 
@@ -211,7 +211,7 @@ Exclude HTTP/TCP/ICY overhead. Never publish stale codec or another station's me
 
 BT command policy: prev/next -> AVRCP previous/next; toggle -> play/pause;
 start -> AVRCP play; stop -> AVRCP stop or a defined local stop policy, NOT
-A2DP teardown. Volume is global DINaudio volume. Station-select play N while BT
+A2DP teardown. Volume is global VoxOne volume. Station-select play N while BT
 owns audio is an accepted playback no-op: do not disconnect BT, start RADIO
 underneath it or interpret N as an AVRCP opcode. Re-publish actual state to undo
 optimistic client changes. Explicit future source selection is a separate policy.
@@ -231,9 +231,9 @@ external_reported = floor((internal * 254 + 50) / 100)
 ```
 
 0 maps exactly to 0 and 254 to 100 at the compatibility boundary. Wire
-compatibility preserves 0..254; DINaudio internal logical volume is only 0..100.
+compatibility preserves 0..254; VoxOne internal logical volume is only 0..100.
 
-The conversion is performed only by the future YoRadioCompatService. DINaudio
+The conversion is performed only by the future YoRadioCompatService. VoxOne
 does not use this mapping as its internal model. volp and volm are logical +/-1
 commands in the 0..100 range, with ordinary clamping. Test monotonic steps,
 clamping and feedback-loop clients at the
@@ -295,7 +295,7 @@ bounded data to BluetoothService/App/StateStore. Investigate a supported encoded
 frame hook to obtain current bitpool. If unavailable, report unknown (0), not a
 fictional measured maximum. Investigate API compatibility before any deeper hook;
 do not rebuild the framework or modify BluetoothService in this documentation task.
-Current DINaudio does not implement these measurements.
+Current VoxOne does not implement these measurements.
 
 ## Backward compatibility rules / unsupported cases
 
@@ -361,10 +361,10 @@ path or transport-driven source heuristic is permitted. This standard is a basel
 not a completed 0.5.0 implementation.
 
 
-## DINaudio PLAY_MEDIA extension - planned
+## VoxOne PLAY_MEDIA extension - planned
 
 This future extension does not change legacy yoRadio WebSocket or MQTT.
-DINaudio has three normal base states: RADIO, BT and STOP. PLAY_MEDIA is a
+VoxOne has three normal base states: RADIO, BT and STOP. PLAY_MEDIA is a
 physical third audio owner but a temporary highest-priority override, never a
 normal user source:
 
@@ -377,7 +377,7 @@ STOP  -> PLAY_MEDIA -> STOP
 PLAY_MEDIA may carry TTS, MP3 files, notification sounds, HA-selected media or
 supported audio URLs. Home Assistant generates and queues requests. It sends playback requests only;
 it must not implement pause/wait/play timing, guess duration or restore source.
-DINaudio snapshots base source and logical volume, takes PlayMedia ownership,
+VoxOne snapshots base source and logical volume, takes PlayMedia ownership,
 applies policy, detects completion/error/timeout, releases PlayMedia, restores
 volume and restores the exact base source.
 
@@ -388,7 +388,7 @@ base ownership.
 
 ### PLAY_MEDIA volume policy
 
-DINaudio internal logical volume is exclusively 0..100. volp and volm mean
+VoxOne internal logical volume is exclusively 0..100. volp and volm mean
 logical +1 and -1, clamped to that range. There is no internal 0..254 model and
 step commands use logical integer units only.
 
@@ -400,7 +400,7 @@ Future configuration:
 FIXED respects the global physical/max output limit. The pre-TTS volume is always
 restored after completion, URL error, stream break, decoder error or timeout.
 Legacy absolute vol x and published volume remain 0..254 only at the future
-YoRadioCompatService boundary; this must not leak into DINaudio state.
+YoRadioCompatService boundary; this must not leak into VoxOne state.
 
 ### Temporary override lifecycle and failures
 
@@ -417,7 +417,7 @@ BT changes during TTS need a deterministic policy.
 ## Volume compatibility correction
 
 Legacy yoRadio wire scale remains 0..254 for absolute vol x and published
-volume. This is only a boundary representation. DINaudio logical scale remains
+volume. This is only a boundary representation. VoxOne logical scale remains
 0..100; volp and volm are logical +/-1 with ordinary clamping.
 Absolute conversion happens only in the future YoRadioCompatService.
 
@@ -435,7 +435,7 @@ WWW configuration is staged and applied only after ZAPISZ validates the complete
 snapshot, writes all NVS values, sends the restart response, waits briefly and
 restarts. There is no hot reload.
 
-DINaudio logical volume remains 0..100. Absolute yoRadio 0..254 conversion is
+VoxOne logical volume remains 0..100. Absolute yoRadio 0..254 conversion is
 performed only at the compatibility boundary. volp and volm are logical +/-1.
 Feature flags can disable BT, Radio, TTS, Display, Encoder, Buttons, MQTT,
 yoRadio WS and HA Discovery; disabled modules do not initialize, reconnect or

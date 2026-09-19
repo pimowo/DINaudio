@@ -16,7 +16,7 @@ void Logger::begin(uint32_t baud) {
 }
 
 void Logger::log(LogLevel level, const char* module, const String& message) {
-#ifndef DINAUDIO_DEBUG
+#ifndef VOXONE_DEBUG
     if (level == LogLevel::Debug) return;
 #endif
     Serial.printf("[%10lu] %-5s %-10s %s\n",

@@ -1,4 +1,4 @@
-# DINaudio runtime configuration schema
+# VoxOne runtime configuration schema
 
 Status: PLANNED configuration contract. This document does not implement
 ConfigManager, NVS migration or WWW. Firmware remains 0.4.0.
@@ -39,7 +39,7 @@ settings may remain stored but are inactive.
 
 | Field | Type | Default | Range/Enum | Visible when | Validation |
 |---|---|---:|---|---|---|
-| device.name | string | DINaudio | bounded UTF-8 | always | nonempty, bounded |
+| device.name | string | VoxOne | bounded UTF-8 | always | nonempty, bounded |
 | audio.start_volume | int | 40 | 0..100 | always | logical/output policy |
 | audio.max_output_volume | int | 100 | 0..100 | always | physical output limit |
 | audio.output_type | enum | PCM5102A | PCM5102A/MAX98357A | always | supported board output |
@@ -66,7 +66,7 @@ not a third normal source. HA owns the request queue.
 CURRENT uses current logical volume. FIXED temporarily uses fixed_volume.
 The pre-PLAY_MEDIA volume is restored after completion, error or timeout. Planned
 lifecycle: snapshot base source/volume -> suspend/release producer -> acquire
-PlayMedia -> play -> cleanup -> restore. No DINaudio TTS queue is planned.
+PlayMedia -> play -> cleanup -> restore. No dedicated TTS queue is planned.
 
 ## Bluetooth and radio
 
@@ -116,14 +116,14 @@ layout. Buttons mapping remains planned.
 | mqtt.root_topic | string | ? | bounded topic | MQTT enabled | valid topic |
 | yoradio.playlist_compat | bool | true | true/false | WS enabled | legacy contract |
 | yoradio.extensions_enabled | bool | true | true/false | WS enabled | optional fields |
-| network.hostname | string | dinaudio | DNS-safe | always | valid hostname |
+| network.hostname | string | voxone | DNS-safe | always | valid hostname |
 | network.mdns_enabled | bool | true | true/false | always | none |
 | network.dhcp_enabled | bool | true | true/false | always | valid network mode |
 | network.ntp_enabled | bool | true | true/false | always | none |
 | network.timezone | string | CET-1CEST,... | valid TZ | always | parseable timezone |
 
 HA Discovery runs only when MQTT is enabled. YoRadio absolute 0..254 volume is
-converted only at the future compatibility boundary; DINaudio remains 0..100.
+converted only at the future compatibility boundary; VoxOne remains 0..100.
 Wi-Fi credentials remain under the existing configuration architecture.
 
 ## GPIO and resource rules
@@ -154,6 +154,12 @@ the existing App ownership lifecycle.
 The repository already has schema history, including schema 3 and migrations.
 New fields require an explicit schema increment and migration plan. Migrations
 preserve Wi-Fi, password, volume and unrelated existing values.
+
+LEGACY NVS COMPATIBILITY: ConfigManager still opens namespace "dinaudio" to
+preserve existing user settings after the VoxOne rename. TODO for the next
+ConfigManager stage: copy every required key to "voxone", verify written values,
+commit a completion marker last, resume safely after power loss, and keep the
+legacy namespace for rollback. Do not switch namespaces without that migration.
 
 ## Status
 

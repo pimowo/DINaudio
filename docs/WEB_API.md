@@ -14,6 +14,6 @@
 - `POST /volume`
 - `POST /reboot`
 
-API DINaudio pozostaje wersjonowane jako `/api/v1/...`.
-DINaudio nie obsługuje OTA; GET/POST `/update` nie są zarejestrowane i zwracają 404.
+API VoxOne pozostaje wersjonowane jako `/api/v1/...`.
+VoxOne nie obsługuje OTA; GET/POST `/update` nie są zarejestrowane i zwracają 404.
 Firmware aktualizuje się przez USB/serial.

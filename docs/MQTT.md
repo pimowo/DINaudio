@@ -3,7 +3,7 @@
 Status: planowane.
 
 Docelowo:
-- root `dinaudio-XXXXXX`
+- root `voxone-XXXXXX`
 - `state/...`
 - `command/...`
 - `event/...`
