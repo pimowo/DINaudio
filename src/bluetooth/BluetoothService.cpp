@@ -63,25 +63,42 @@ int BluetoothService::mapRemoteVolume(int volume0to127) {
 }
 
 void BluetoothService::onRemoteVolume(int volume) {
-    if (!_instance) return;
-    portENTER_CRITICAL(&_instance->_peerMux);
-    if (_instance->_acceptCallbacks.load()) {
+    auto* service = _instance;
+    if (!service) return;
+    bool restoreLocal = false;
+    portENTER_CRITICAL(&service->_peerMux);
+    if (service->_acceptCallbacks.load()) {
         const uint8_t raw = constrain(volume, 0, 127);
         const uint32_t now = millis();
         bool localEcho = false;
-        for (uint8_t i = 0; i < _instance->_recentLocalCount; ++i) {
-            const auto& mark = _instance->_recentLocalVolume[i];
+        for (uint8_t i = 0; i < service->_recentLocalCount; ++i) {
+            const auto& mark = service->_recentLocalVolume[i];
             if (mark.raw == raw && now - mark.atMs <= 1500) {
                 localEcho = true;
                 break;
             }
         }
-        if (!localEcho) {
-            _instance->_remoteVolume127 = raw;
-            _instance->_remoteVolumePending = true;
+        if (!service->_a2dpConnected || !service->_initialVolumeSynced) {
+            // The library has already applied the phone's value to PCM.
+            restoreLocal = true;
+        } else if (!localEcho) {
+            service->_remoteVolume127 = raw;
+            service->_remoteVolumePending = true;
         }
     }
-    portEXIT_CRITICAL(&_instance->_peerMux);
+    portEXIT_CRITICAL(&service->_peerMux);
+    if (restoreLocal)
+        service->_sink.setLocalAttenuation(
+            mapVolume(service->_volume.load(std::memory_order_relaxed)));
+}
+void BluetoothService::onVolumeNotificationReady(int) {
+    auto* service = _instance;
+    if (!service) return;
+    portENTER_CRITICAL(&service->_peerMux);
+    if (service->_acceptCallbacks.load() &&
+        service->_sink.get_connection_state() != ESP_A2D_CONNECTION_STATE_DISCONNECTED)
+        service->_volumeNotifyReady = true;
+    portEXIT_CRITICAL(&service->_peerMux);
 }
 
 void BluetoothService::onMetadata(uint8_t id, const uint8_t* text) {
@@ -123,6 +140,12 @@ void BluetoothService::onConnectionState(
     if (state != ESP_A2D_CONNECTION_STATE_CONNECTED) {
         service->_avrcPlayback.store(-1);
         portENTER_CRITICAL(&service->_peerMux);
+        if (service->_a2dpConnected) ++service->_volumeSession;
+        service->_a2dpConnected = false;
+        service->_volumeNotifyReady = false;
+        service->_initialVolumeSyncPending = false;
+        service->_initialVolumeSynced = false;
+        service->_remoteVolumePending = false;
         service->_recentLocalCount = 0;
         portEXIT_CRITICAL(&service->_peerMux);
         return;
@@ -133,6 +156,15 @@ void BluetoothService::onConnectionState(
     if (!service->_acceptCallbacks.load()) {
         portEXIT_CRITICAL(&service->_peerMux);
         return;
+    }
+    if (!service->_a2dpConnected) {
+        service->_a2dpConnected = true;
+        // Keep a notification registered during A2DP CONNECTING.
+        service->_initialVolumeSyncPending = true;
+        service->_initialVolumeSynced = false;
+        service->_remoteVolumePending = false;
+        service->_recentLocalCount = 0;
+        ++service->_volumeSession;
     }
     memcpy(service->_lastPeerAddress, *service->_sink.get_current_peer_address(),
         ESP_BD_ADDR_LEN);
@@ -238,7 +270,11 @@ bool BluetoothService::configureAndStart(bool resume) {
     );
     _sink.set_avrc_metadata_callback(&BluetoothService::onMetadata);
     _sink.set_avrc_rn_volumechange(&BluetoothService::onRemoteVolume);
+    // Called after the phone registers AVRCP volume notifications.
+    _sink.set_avrc_rn_volumechange_completed(
+        &BluetoothService::onVolumeNotificationReady);
     _sink.set_peer_name_callback(&BluetoothService::onPeerName);
+    _sink.resetVolumeNotification();
     _sink.set_volume(mapVolume(_volume));
     _sink.expectProfileEvent();
     _sink.start(_deviceName.c_str());
@@ -324,6 +360,14 @@ bool BluetoothService::finishSuspend() {
         return false;
     }
     _remoteVolumePending = _metadataPending = _peerNamePending = false;
+    portENTER_CRITICAL(&_peerMux);
+    _a2dpConnected = false;
+    _volumeNotifyReady = false;
+    _initialVolumeSyncPending = false;
+    _initialVolumeSynced = false;
+    ++_volumeSession;
+    _recentLocalCount = 0;
+    portEXIT_CRITICAL(&_peerMux);
     _pendingSampleRate.store(0);
     _avrcPlayback.store(-1);
     _outputStream = nullptr;
@@ -430,6 +474,14 @@ void BluetoothService::logAudioDiagnostics(uint32_t now) {
 void BluetoothService::setVolume(int volume0to100) {
     _volume = constrain(volume0to100, 0, 100);
     if (!_started) return;
+    portENTER_CRITICAL(&_peerMux);
+    const bool ready = _a2dpConnected && _initialVolumeSynced;
+    portEXIT_CRITICAL(&_peerMux);
+    if (!ready) {
+        // Keep PCM attenuation responsive without notifying the phone yet.
+        _sink.setLocalAttenuation(mapVolume(_volume));
+        return;
+    }
     const uint8_t raw = mapVolume(_volume);
     portENTER_CRITICAL(&_peerMux);
     _recentLocalVolume[_recentLocalNext] = {raw, millis()};
@@ -437,6 +489,43 @@ void BluetoothService::setVolume(int volume0to100) {
     if (_recentLocalCount < 16) ++_recentLocalCount;
     portEXIT_CRITICAL(&_peerMux);
     _sink.set_volume(raw);
+}
+
+void BluetoothService::syncInitialVolume() {
+    uint32_t session = 0;
+    portENTER_CRITICAL(&_peerMux);
+    const bool ready = _a2dpConnected && _volumeNotifyReady &&
+        _initialVolumeSyncPending && !_initialVolumeSynced;
+    if (ready) {
+        session = _volumeSession;
+        _initialVolumeSyncPending = false;
+    }
+    portEXIT_CRITICAL(&_peerMux);
+    if (!ready) return;
+
+    const int local = constrain(StateStore::instance().snapshot().volume, 0, 100);
+    const uint8_t raw = mapVolume(local);
+    portENTER_CRITICAL(&_peerMux);
+    if (!_a2dpConnected || session != _volumeSession) {
+        portEXIT_CRITICAL(&_peerMux);
+        return;
+    }
+    _volume = local;
+    _recentLocalVolume[_recentLocalNext] = {raw, millis()};
+    _recentLocalNext = (_recentLocalNext + 1) % 16;
+    if (_recentLocalCount < 16) ++_recentLocalCount;
+    portEXIT_CRITICAL(&_peerMux);
+
+    // The remote callback stays gated until this write has completed.
+    _sink.set_volume(raw);
+
+    portENTER_CRITICAL(&_peerMux);
+    const bool synced = _a2dpConnected && session == _volumeSession;
+    if (synced) _initialVolumeSynced = true;
+    portEXIT_CRITICAL(&_peerMux);
+    if (synced)
+        Logger::info("BT", "Initial volume sync: VoxOne=" +
+            String(local) + " AVRCP=" + String(raw));
 }
 
 void BluetoothService::play() {
@@ -499,7 +588,7 @@ void BluetoothService::flushPendingEvents() {
     char artist[sizeof(_pendingArtist)];
     char peer[sizeof(_pendingPeerName)];
     portENTER_CRITICAL(&_peerMux);
-    volumePending = _remoteVolumePending;
+    volumePending = _remoteVolumePending && _a2dpConnected && _initialVolumeSynced;
     metadataPending = _metadataPending;
     peerPending = _peerNamePending;
     raw = _remoteVolume127;
@@ -569,6 +658,7 @@ void BluetoothService::loop() {
     if (!_started) return;
 
     flushPendingEvents();
+    syncInitialVolume();
     applySampleRate();
 
     const uint32_t now = millis();

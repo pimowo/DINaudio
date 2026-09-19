@@ -51,7 +51,7 @@ private:
     bool _sourceSwitchPending = false;
     TaskHandle_t _appTask = nullptr;
     std::atomic<bool> _acceptCallbacks{false};
-    int _volume = 25;
+    std::atomic<int> _volume{25};
     // Recent local AVRCP values identify delayed echoes from the phone.
     struct LocalVolumeMark {
         uint8_t raw = 0;
@@ -60,6 +60,12 @@ private:
     LocalVolumeMark _recentLocalVolume[16];
     uint8_t _recentLocalCount = 0;
     uint8_t _recentLocalNext = 0;
+    // These connection and volume flags are guarded by _peerMux.
+    bool _a2dpConnected = false;
+    bool _volumeNotifyReady = false;
+    bool _initialVolumeSyncPending = false;
+    bool _initialVolumeSynced = false;
+    uint32_t _volumeSession = 0;
     std::atomic<uint32_t> _rawPcmCallbacks{0};
     std::atomic<uint32_t> _rawPcmBytes{0};
     std::atomic<uint32_t> _rawNonzeroCallbacks{0};
@@ -115,12 +121,14 @@ private:
         esp_a2d_audio_state_t audioState
     );
     void flushPendingEvents();
+    void syncInitialVolume();
 
     static uint8_t mapVolume(int volume0to100);
     static int mapRemoteVolume(int volume0to127);
 
     static BluetoothService* _instance;
     static void onRemoteVolume(int volume);
+    static void onVolumeNotificationReady(int volume);
     static void onMetadata(uint8_t id, const uint8_t* text);
     static void onPeerName(char* peerName);
 

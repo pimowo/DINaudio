@@ -91,6 +91,12 @@ public:
         return false;
     }
 
+    void resetVolumeNotification() { s_volume_notify = false; }
+    void setLocalAttenuation(uint8_t volume) {
+        volume_control()->set_volume(volume);
+        volume_control()->set_enabled(true);
+    }
+
     void resetTransportForResume() {
         connection_state = ESP_A2D_CONNECTION_STATE_DISCONNECTED;
         audio_state = ESP_A2D_AUDIO_STATE_STOPPED;
